@@ -65,8 +65,18 @@ async function run() {
 function renderInspect() {
   if (!state.result) return;
   if (state.view === "profile") inspect.textContent = JSON.stringify(state.result.profile, null, 2);
-  else if (state.view === "ir") inspect.textContent = state.result.ir.map((op, index) => `${String(index).padStart(4, "0")}  ${op.operation.padEnd(6)} ${String(op.argument).padStart(5)}  steps=${op.steps}`).join("\n");
-  else inspect.textContent = state.result.trace.map((event) => `${event.step}  ${event.operation.padEnd(6)} arg=${String(event.argument).padStart(4)} ptr=${String(event.pointer).padStart(5)} cell=${event.cell}`).join("\n");
+  else if (state.view === "ir") {
+    const header = "INDEX  OPERATION  ARGUMENT  STEPS";
+    const divider = "-----  ---------  --------  -----";
+    inspect.textContent = [header, divider, ...state.result.ir.map((op, index) => `${String(index).padStart(5)}  ${op.operation.padEnd(9)}  ${String(op.argument).padStart(8)}  ${String(op.steps).padStart(5)}`)].join("\n");
+  } else {
+    const header = "STEP    LOCATION       OPERATION  ARGUMENT  POINTER  CELL";
+    const divider = "------  -------------  ---------  --------  -------  ----";
+    inspect.textContent = [header, divider, ...state.result.trace.map((event) => {
+      const location = (event.location || "").replace("line ", "L").replace(", column ", ":");
+      return `${String(event.step).padStart(6)}  ${location.padEnd(13)}  ${event.operation.padEnd(9)}  ${String(event.argument).padStart(8)}  ${String(event.pointer).padStart(7)}  ${event.cell}`;
+    })].join("\n");
+  }
 }
 
 async function format() {
