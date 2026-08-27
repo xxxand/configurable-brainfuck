@@ -40,6 +40,8 @@ python brainfuck.py -m strict -s 100000 code.bf
 python brainfuck.py -b 16 -o byte code.bf
 ```
 
+优化级别使用 `--optimization-level 0`、`1` 或 `2`：`0` 逐条执行，`1` 合并连续移动和增减（默认），`2` 还会在固定宽度回绕 Cell 模式中安全折叠 `[-]` 与 `[+]` 清零循环。开启 `max_steps`、trace 或 profile 时，解释器会保留保证精确语义所需的逐条操作。
+
 细调示例：
 
 ```powershell
@@ -98,6 +100,34 @@ interpret(sourcecode, max_steps=100_000)
 - `[` 在当前 Cell 为 `0` 时跳到匹配的 `]` 之后；`]` 在当前 Cell 非 `0` 时跳回匹配的 `[` 之后。
 
 完整的模式、参数、逐指令行为、异常及步数定义见 [SEMANTICS.md](SEMANTICS.md)。
+
+## 调试与观测
+
+`--trace` 将逐条执行信息写到标准错误，不污染 BF 程序的标准输出。`--trace-format jsonl` 输出稳定的 JSON Lines；`--trace-file` 将追踪写入单独文件。
+
+```powershell
+python brainfuck.py --trace code.bf
+python brainfuck.py --trace --trace-format jsonl --trace-file trace.jsonl code.bf
+python brainfuck.py --profile --dump-ir code.bf
+```
+
+`--profile` 在标准错误输出 JSON，包含原始指令步数、运行时间、指针访问范围、非零 Cell 数和操作计数。`--dump-ir` 显示内部操作、合并结果、跳转目标与源代码位置。启用 `--trace` 或 `--profile` 时，移动和增减不会合并，从而保留准确的逐条观测结果。
+
+标准兼容模式 (`standard`、`standard-one-way`、`strict`) 的 CLI 使用原始字节流进行 I/O。模块 API 的 `interpret_bytes()` 提供相同的二进制语义；`interpret()` 的文本输入在 byte 输出模式中仅接受 ASCII 字符。
+
+## 编译为 Python
+
+`compile_to_python(sourcecode, ...)` 返回独立、仅依赖 Python 标准库的 Python 程序文本。生成脚本嵌入 BF 源码和选定配置，并按原始 BF 指令执行，优先保证语义一致性。
+
+命令行使用 `--compile-python [OUTPUT] code.bf`。省略 `OUTPUT` 时生成代码写到标准输出；提供目标时写入该文件：
+
+```powershell
+python brainfuck.py --compile-python code.bf > program.py
+python brainfuck.py --compile-python program.py code.bf
+python brainfuck.py --compile-python code.bf | python
+```
+
+执行 BF 时，程序结果始终写到标准输出。需要保存结果时使用 shell 重定向，例如 `python brainfuck.py code.bf > result.bin`。
 
 ## 测试
 

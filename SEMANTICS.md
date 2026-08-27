@@ -57,6 +57,20 @@
 
 命令行模式只在实际执行 `,` 时调用标准输入的 `read(1)`。没有 `,` 的程序不会等待输入。
 
+在 `standard`、`standard-one-way` 和 `strict` 模式中，命令行通过原始字节流读取和输出。`interpret_bytes()` 是模块 API 中对应的字节入口；这些模式下 `interpret()` 只接受 ASCII 文本输入，其他文本输入引发 `ValueError`。
+
+## Trace、Profile 与 IR
+
+`--trace` 默认向标准错误输出 `step`、源位置、内部操作、参数、指针和当前 Cell。`--trace-format jsonl` 每行输出一个具有相同字段的 JSON 对象，`--trace-file` 可将结果重定向到文件。`--profile` 在标准错误输出 JSON，字段包括 `steps`、`elapsed_seconds`、`pointer_min`、`pointer_max`、`nonzero_cells` 和 `instruction_counts`。`--dump-ir` 显示编译后的操作及其源位置。
+
+启用 trace 或 profile 时不合并指针移动或 Cell 增减，确保事件和指针范围对应原始 BF 指令。
+
+## 优化与代码生成
+
+`--optimization-level 0` 逐条执行原始 BF 指令。级别 `1`（默认）会合并连续的 `+` / `-`，并在没有 Tape 边界、步数限制、trace 或 profile 时合并连续 `>` / `<`。级别 `2` 仅在固定宽度 `wrap` Cell、没有步数限制、trace 或 profile 时，将恰好匹配 `[-]` 或 `[+]` 的循环折叠为清零；无限整数 Cell 下不使用该优化，因为负数值可能不终止。
+
+`compile_to_python()` 和 `--compile-python [OUTPUT] code.bf` 生成独立 Python 脚本。未指定 `OUTPUT` 时脚本写到标准输出，指定后写入目标路径。生成脚本嵌入已解析的配置，使用逐原始 BF 指令执行，以保持 Cell、Tape、EOF、字节 I/O 和步数限制语义。
+
 ## Step Matrix
 
 | Source | Executed source instructions | Notes |
@@ -76,7 +90,7 @@
 | `U-TAPE-01` | `<+.>+.` | Both negative and positive pointer positions read and write. |
 | `S-CELL-01` | `+` repeated 256 times, standard mode | NUL output after 8-bit wrap. |
 | `S-CELL-02` | `-[-].`, standard mode | NUL output; `[-]` clears wrapped byte value 255. |
-| `S-INPUT-01` | `,.`, standard mode, U+0100 input | NUL output after 8-bit input conversion. |
+| `S-INPUT-01` | `,.`, standard mode, byte input `255` | Byte value `255` output. Text API rejects non-ASCII input. |
 | `C-CELL-01` | 16 `+`, `cell_bits=4` | NUL output after 4-bit wrap. |
 | `C-EOF-01` | `+,.`, `eof_mode=unchanged` | SOH output. |
 | `C-OUTPUT-01` | `-.`, `output_mode=byte` | Byte value 255 output. |

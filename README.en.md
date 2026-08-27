@@ -40,6 +40,8 @@ python brainfuck.py -m strict -s 100000 code.bf
 python brainfuck.py -b 16 -o byte code.bf
 ```
 
+Use `--optimization-level 0`, `1`, or `2`: `0` executes one instruction at a time, `1` combines consecutive moves and changes (the default), and `2` additionally folds safe `[-]` and `[+]` clear loops in fixed-width wrapping-Cell modes. With `max_steps`, tracing, or profiling enabled, the interpreter preserves the source-level operations needed for exact semantics.
+
 Fine-grained configuration examples:
 
 ```powershell
@@ -98,6 +100,34 @@ interpret(sourcecode, max_steps=100_000)
 - `[` skips to just after its matching `]` when the current Cell is `0`; `]` jumps to just after its matching `[` when the current Cell is nonzero.
 
 See [SEMANTICS.en.md](SEMANTICS.en.md) for the complete definition of modes, options, instruction behavior, exceptions, and step counting.
+
+## Debugging And Observability
+
+`--trace` writes execution details to standard error and leaves BF program standard output clean. `--trace-format jsonl` emits stable JSON Lines, and `--trace-file` writes the trace to a separate file.
+
+```powershell
+python brainfuck.py --trace code.bf
+python brainfuck.py --trace --trace-format jsonl --trace-file trace.jsonl code.bf
+python brainfuck.py --profile --dump-ir code.bf
+```
+
+`--profile` writes JSON to standard error with original instruction steps, elapsed time, pointer range, nonzero Cell count, and operation counts. `--dump-ir` shows internal operations, combined runs, jump targets, and source locations. With `--trace` or `--profile`, moves and changes are not combined so observations remain source-accurate.
+
+Standard-compatible modes (`standard`, `standard-one-way`, and `strict`) use raw byte streams for CLI I/O. The module API's `interpret_bytes()` provides the same binary semantics; `interpret()` accepts only ASCII text input in byte-output modes.
+
+## Compile To Python
+
+`compile_to_python(sourcecode, ...)` returns standalone Python program text that depends only on the Python standard library. The generated script embeds the BF source and selected configuration, and executes original BF instructions to prioritize semantic consistency.
+
+Use `--compile-python [OUTPUT] code.bf` on the command line. With no `OUTPUT`, generated code goes to standard output; with an output path, it is written to that file:
+
+```powershell
+python brainfuck.py --compile-python code.bf > program.py
+python brainfuck.py --compile-python program.py code.bf
+python brainfuck.py --compile-python code.bf | python
+```
+
+When interpreting BF, program results always go to standard output. Use shell redirection to save them, for example `python brainfuck.py code.bf > result.bin`.
 
 ## Tests
 

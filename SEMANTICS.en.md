@@ -57,6 +57,20 @@ All non-BF characters are ignored. Whitespace and comments do not affect semanti
 
 In command-line mode, standard input's `read(1)` is called only when `,` actually executes. A program without `,` never waits for input.
 
+In `standard`, `standard-one-way`, and `strict` modes, the CLI reads and writes raw byte streams. `interpret_bytes()` is the equivalent byte-oriented module API. In these modes, `interpret()` accepts only ASCII text input; other text input raises `ValueError`.
+
+## Trace, Profile, And IR
+
+By default, `--trace` writes the `step`, source location, internal operation, argument, pointer, and current Cell to standard error. `--trace-format jsonl` emits one JSON object with the same fields per line, and `--trace-file` redirects it to a file. `--profile` writes JSON to standard error with `steps`, `elapsed_seconds`, `pointer_min`, `pointer_max`, `nonzero_cells`, and `instruction_counts`. `--dump-ir` shows compiled operations and their source locations.
+
+With trace or profiling enabled, pointer moves and Cell changes are not combined so events and pointer ranges correspond to original BF instructions.
+
+## Optimization And Code Generation
+
+`--optimization-level 0` executes original BF instructions one at a time. Level `1` (the default) combines consecutive `+` / `-`, and combines consecutive `>` / `<` when there are no Tape bounds, step limit, trace, or profile. Level `2` folds loops exactly matching `[-]` or `[+]` into a clear operation only with fixed-width `wrap` Cells and no step limit, trace, or profile. This optimization is not used for unbounded integer Cells because negative values may not terminate.
+
+`compile_to_python()` and `--compile-python [OUTPUT] code.bf` generate a standalone Python script. Without `OUTPUT`, the script is written to standard output; otherwise it is written to the target path. Generated scripts embed the resolved configuration and execute original BF instructions to preserve Cell, Tape, EOF, byte I/O, and step-limit semantics.
+
 ## Step Matrix
 
 | Source | Executed source instructions | Notes |
@@ -76,7 +90,7 @@ When `max_steps` is `N`, the interpreter executes at most `N` original BF instru
 | `U-TAPE-01` | `<+.>+.` | Both negative and positive pointer positions read and write. |
 | `S-CELL-01` | `+` repeated 256 times, standard mode | NUL output after 8-bit wrap. |
 | `S-CELL-02` | `-[-].`, standard mode | NUL output; `[-]` clears wrapped byte value 255. |
-| `S-INPUT-01` | `,.`, standard mode, U+0100 input | NUL output after 8-bit input conversion. |
+| `S-INPUT-01` | `,.`, standard mode, byte input `255` | Byte value `255` output. The text API rejects non-ASCII input. |
 | `C-CELL-01` | 16 `+`, `cell_bits=4` | NUL output after 4-bit wrap. |
 | `C-EOF-01` | `+,.`, `eof_mode=unchanged` | SOH output. |
 | `C-OUTPUT-01` | `-.`, `output_mode=byte` | Byte value 255 output. |
