@@ -50,7 +50,7 @@ The initial pointer is always `0`, so configured ranges must include `0`. A `tap
 | `[` | Skips the matching `]` when the current Cell is `0` | Same | Brackets must match. |
 | `]` | Jumps to after the matching `[` when the current Cell is nonzero | Same | Brackets must match. |
 
-By default, all non-BF characters, including `#`, are ignored. `comment_style="block"` first replaces non-nested `/* ... */` blocks with equal-length whitespace while retaining source locations; an unclosed block raises `SyntaxError`. `debug_command="qdb"` makes `#` a ninth extension instruction, requires 8-bit wrapping Cells, and writes qdb's blank line, signed-byte Cell view for indexes `0..63`, and pointer `^` to program output. Both extensions are disabled by default.
+By default, all non-BF characters, including `#`, are ignored. `comment_style="block"` first replaces non-nested `/* ... */` blocks with equal-length whitespace while retaining source locations; an unclosed block raises `SyntaxError`. `debug_command="qdb"` makes `#` a ninth extension instruction, requires 8-bit wrapping Cells, and writes qdb's blank line, signed-byte Cell view for indexes `0..63`, and pointer `^` to program output. Original qdb leaves negative pointers undefined; this project anchors `^` at the left margin in that case. Both extensions are disabled by default.
 
 ## EOF Matrix
 

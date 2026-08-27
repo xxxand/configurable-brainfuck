@@ -182,12 +182,14 @@ def _compile(
 
 
 def _validate_positive_integer(value: object, name: str) -> int:
+    """Reject booleans, zero, and non-integers for Cell width configuration."""
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError(f"{name} must be a positive integer")
     return value
 
 
 def _resolve_bound(value: int | str | None, inherited: int | None, name: str) -> int | None:
+    """Resolve a Tape bound, where ``None`` inherits and ``unbounded`` removes it."""
     if value is None:
         return inherited
     if value == UNBOUNDED:
@@ -259,6 +261,7 @@ def _resolve_config(
 
 
 def _store_cell(tape: dict[int, int], pointer: int, value: int, config: _RuntimeConfig) -> None:
+    """Apply Cell wrapping and omit zero entries to keep the Tape sparse."""
     if config.cell_mode == "wrap":
         value %= 1 << config.cell_bits
     if value:
@@ -268,7 +271,11 @@ def _store_cell(tape: dict[int, int], pointer: int, value: int, config: _Runtime
 
 
 def _qdb_debug_output(tape: dict[int, int], pointer: int) -> str:
-    """Render qdb's 64 signed-byte Cell view and its pointer marker."""
+    """Render qdb's 64 signed-byte Cell view and its pointer marker.
+
+    qdb leaves negative pointers undefined. This implementation anchors their
+    marker at the left margin so the optional debugger remains printable.
+    """
     cells = "".join(f"{value if value < 128 else value - 256:4d}" for value in (tape.get(index, 0) for index in range(64)))
     return f"\n{cells}\n{' ' * max(0, pointer * 4 + 4)}^\n"
 
@@ -439,7 +446,12 @@ def interpret(
     max_steps: int | None = None, optimize: bool = True, optimization_level: int | None = None,
     trace: Callable[[dict[str, object]], None] | None = None, profile: dict[str, object] | None = None,
 ) -> str:
-    """Execute BF source through the text API and return its output string."""
+    """Execute BF source through the text API and return its output string.
+
+    ``input_data`` and ``input_reader`` supply Unicode characters. Byte-output
+    modes accept ASCII text input only; use :func:`interpret_bytes` for raw
+    byte input. Remaining keyword arguments select runtime semantics.
+    """
     config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command, max_steps, optimize, optimization_level)
     if not isinstance(input_data, str):
         raise TypeError("input_data must be str; use interpret_bytes for byte input")
@@ -458,7 +470,11 @@ def interpret_bytes(
     max_steps: int | None = None, optimize: bool = True, optimization_level: int | None = None,
     trace: Callable[[dict[str, object]], None] | None = None, profile: dict[str, object] | None = None,
 ) -> bytes:
-    """Execute BF source with byte input and output for canonical BF I/O."""
+    """Execute BF source with raw byte I/O and return raw byte output.
+
+    The default ``strict`` profile uses canonical 8-bit Cell semantics. This
+    API deliberately rejects Unicode text input and non-byte output modes.
+    """
     config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command, max_steps, optimize, optimization_level)
     if config.output_mode != "byte":
         raise ValueError("interpret_bytes requires output_mode='byte'")
