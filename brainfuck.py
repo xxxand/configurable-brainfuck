@@ -1,15 +1,11 @@
-"""A configurable Brainfuck interpreter with unrestricted defaults."""
+"""Public API and command-line entry point for the Brainfuck interpreter."""
 
 from __future__ import annotations
 
-import argparse
-import json
-import sys
-import time
 from collections import Counter
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Callable, TextIO
+import time
+from typing import Callable
 
 
 COMMANDS = frozenset("><+-.,[]")
@@ -52,6 +48,8 @@ class _RuntimeConfig:
 
 @dataclass(frozen=True)
 class _Operation:
+    """An executable IR operation with source-level step accounting."""
+
     kind: str
     argument: int
     step_count: int
@@ -67,13 +65,12 @@ PROFILES = {
 
 
 def _location(sourcecode: str, offset: int) -> str:
-    line = sourcecode.count("\n", 0, offset) + 1
-    column = offset - sourcecode.rfind("\n", 0, offset)
-    return f"line {line}, column {column}"
+    """Convert a string offset into a human-readable one-based location."""
+    return f"line {sourcecode.count(chr(10), 0, offset) + 1}, column {offset - sourcecode.rfind(chr(10), 0, offset)}"
 
 
 def _filter_program(sourcecode: str) -> tuple[str, list[int]]:
-    """Return BF commands and their offsets in the original source text."""
+    """Keep BF commands and retain their offsets for diagnostics."""
     commands: list[str] = []
     offsets: list[int] = []
     for offset, character in enumerate(sourcecode):
@@ -84,7 +81,7 @@ def _filter_program(sourcecode: str) -> tuple[str, list[int]]:
 
 
 def _build_jumps(program: str, offsets: list[int], sourcecode: str) -> dict[int, int]:
-    """Return matching bracket positions, reporting original source locations."""
+    """Match brackets before execution, reporting locations in the original source."""
     stack: list[int] = []
     jumps: dict[int, int] = {}
     for position, command in enumerate(program):
@@ -103,13 +100,12 @@ def _build_jumps(program: str, offsets: list[int], sourcecode: str) -> dict[int,
 
 
 def _compile(sourcecode: str, optimize_moves: bool, optimize_additions: bool) -> list[_Operation]:
-    """Compile source into operations while retaining original source offsets."""
+    """Compile BF text to IR, combining only operations allowed by the caller."""
     program, offsets = _filter_program(sourcecode)
     jumps = _build_jumps(program, offsets, sourcecode)
     operations: list[_Operation] = []
     brackets: dict[int, int] = {}
     position = 0
-
     while position < len(program):
         command = program[position]
         if command in "><" and optimize_moves:
@@ -130,11 +126,14 @@ def _compile(sourcecode: str, optimize_moves: bool, optimize_additions: bool) ->
             if delta:
                 operations.append(_Operation("add", delta, position - start, offsets[start]))
             continue
-
-        kinds = {">": "move", "<": "move", "+": "add", "-": "add", ".": "output", ",": "input"}
-        if command in kinds:
-            argument = 1 if command in ">+" else -1 if command in "<-" else 0
-            operations.append(_Operation(kinds[command], argument, 1, offsets[position]))
+        if command in ">+":
+            operations.append(_Operation("move" if command == ">" else "add", 1, 1, offsets[position]))
+        elif command in "<-":
+            operations.append(_Operation("move" if command == "<" else "add", -1, 1, offsets[position]))
+        elif command == ".":
+            operations.append(_Operation("output", 0, 1, offsets[position]))
+        elif command == ",":
+            operations.append(_Operation("input", 0, 1, offsets[position]))
         elif command == "[":
             brackets[position] = len(operations)
             operations.append(_Operation("jump_if_zero", 0, 1, offsets[position]))
@@ -142,7 +141,6 @@ def _compile(sourcecode: str, optimize_moves: bool, optimize_additions: bool) ->
             brackets[position] = len(operations)
             operations.append(_Operation("jump_if_nonzero", 0, 1, offsets[position]))
         position += 1
-
     for position, target in jumps.items():
         operation = operations[brackets[position]]
         operations[brackets[position]] = _Operation(
@@ -214,15 +212,8 @@ def _resolve_config(
     resolved_output_mode = profile.output_mode if output_mode is None else output_mode
     if resolved_output_mode not in ("unicode", "byte"):
         raise ValueError("output_mode must be 'unicode' or 'byte'")
-    return _RuntimeConfig(
-        resolved_cell_mode,
-        resolved_cell_bits,
-        resolved_tape_min,
-        resolved_tape_max,
-        resolved_pointer_bounds,
-        resolved_eof_mode,
-        resolved_output_mode,
-    )
+    return _RuntimeConfig(resolved_cell_mode, resolved_cell_bits, resolved_tape_min, resolved_tape_max,
+                          resolved_pointer_bounds, resolved_eof_mode, resolved_output_mode)
 
 
 def _store_cell(tape: dict[int, int], pointer: int, value: int, config: _RuntimeConfig) -> None:
@@ -235,19 +226,36 @@ def _store_cell(tape: dict[int, int], pointer: int, value: int, config: _Runtime
 
 
 def _is_clear_loop(operations: list[_Operation], instruction: int) -> bool:
-    """Return whether operations at *instruction* are exactly ``[-]`` or ``[+]``."""
+    """Recognize only exact ``[-]`` and ``[+]`` loops in compiled IR."""
     if instruction + 2 >= len(operations):
         return False
     opening, change, closing = operations[instruction : instruction + 3]
-    return (
-        opening.kind == "jump_if_zero"
-        and opening.argument == instruction + 2
-        and change.kind == "add"
-        and abs(change.argument) == 1
-        and change.step_count == 1
-        and closing.kind == "jump_if_nonzero"
-        and closing.argument == instruction
-    )
+    return (opening.kind == "jump_if_zero" and opening.argument == instruction + 2
+            and change.kind == "add" and abs(change.argument) == 1 and change.step_count == 1
+            and closing.kind == "jump_if_nonzero" and closing.argument == instruction)
+
+
+def _optimize_clear_operations(operations: list[_Operation]) -> list[_Operation]:
+    """Replace clear loops and remap surviving IR jump destinations."""
+    rewritten: list[_Operation] = []
+    remap: dict[int, int] = {}
+    index = 0
+    while index < len(operations):
+        if _is_clear_loop(operations, index):
+            for old_index in range(index, index + 3):
+                remap[old_index] = len(rewritten)
+            rewritten.append(_Operation("clear", 0, 0, operations[index].source_offset))
+            index += 3
+        else:
+            remap[index] = len(rewritten)
+            rewritten.append(operations[index])
+            index += 1
+    result: list[_Operation] = []
+    for operation in rewritten:
+        if operation.kind.startswith("jump_"):
+            operation = _Operation(operation.kind, remap[operation.argument], operation.step_count, operation.source_offset)
+        result.append(operation)
+    return result
 
 
 def _resolve_optimization_level(optimize: bool, optimization_level: int | None) -> int:
@@ -262,34 +270,15 @@ def _resolve_optimization_level(optimize: bool, optimization_level: int | None) 
     return optimization_level
 
 
-def _optimize_clear_operations(operations: list[_Operation]) -> list[_Operation]:
-    """Replace safe fixed-width clear loops with one IR operation."""
-    rewritten: list[tuple[int, _Operation]] = []
-    old_to_new: dict[int, int] = {}
-    instruction = 0
-    while instruction < len(operations):
-        if _is_clear_loop(operations, instruction):
-            new_index = len(rewritten)
-            for offset in range(3):
-                old_to_new[instruction + offset] = new_index
-            rewritten.append((instruction, _Operation("clear", 0, 0, operations[instruction].source_offset)))
-            instruction += 3
-        else:
-            old_to_new[instruction] = len(rewritten)
-            rewritten.append((instruction, operations[instruction]))
-            instruction += 1
-
-    result: list[_Operation] = []
-    for original_index, operation in rewritten:
-        if operation.kind.startswith("jump_"):
-            operation = _Operation(
-                operation.kind,
-                old_to_new[operation.argument],
-                operation.step_count,
-                operation.source_offset,
-            )
-        result.append(operation)
-    return result
+def _configuration(
+    mode: str, cell_mode: str | None, cell_bits: int | str | None, tape_min: int | str | None,
+    tape_max: int | str | None, pointer_bounds: str | None, eof_mode: str | None, output_mode: str | None,
+    max_steps: int | None, optimize: bool, optimization_level: int | None,
+) -> tuple[_RuntimeConfig, int]:
+    if max_steps is not None and (isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 0):
+        raise ValueError("max_steps must be a non-negative integer or None")
+    return (_resolve_config(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode),
+            _resolve_optimization_level(optimize, optimization_level))
 
 
 def _execute(
@@ -297,30 +286,20 @@ def _execute(
     config: _RuntimeConfig, max_steps: int | None, optimization_level: int,
     trace: Callable[[dict[str, object]], None] | None, profile: dict[str, object] | None,
 ) -> str | bytes:
-    optimize_moves = (
-        optimization_level >= 1
-        and max_steps is None
-        and config.tape_min is None
-        and config.tape_max is None
-        and trace is None
-        and profile is None
+    observable = trace is not None or profile is not None
+    operations = _compile(
+        sourcecode,
+        optimization_level >= 1 and max_steps is None and config.tape_min is None and config.tape_max is None and not observable,
+        optimization_level >= 1 and max_steps is None and not observable,
     )
-    optimize_additions = optimization_level >= 1 and max_steps is None and trace is None and profile is None
-    operations = _compile(sourcecode, optimize_moves, optimize_additions)
     tape: dict[int, int] = {}
     pointer = instruction = input_position = steps = 0
     output_text: list[str] = []
     output_bytes = bytearray()
-    instruction_counts: Counter[str] = Counter()
-    pointer_min = pointer_max = pointer
+    counts: Counter[str] = Counter()
+    pointer_min = pointer_max = 0
     started = time.perf_counter()
-    optimize_clear_loops = (
-        optimization_level == 2
-        and config.cell_mode == "wrap"
-        and max_steps is None
-        and trace is None
-        and profile is None
-    )
+    use_clear = optimization_level == 2 and config.cell_mode == "wrap" and max_steps is None and not observable
 
     while instruction < len(operations):
         operation = operations[instruction]
@@ -331,9 +310,8 @@ def _execute(
             trace({"step": steps, "location": location, "operation": operation.kind,
                    "argument": operation.argument, "pointer": pointer, "cell": tape.get(pointer, 0)})
         steps += operation.step_count
-        instruction_counts[operation.kind] += operation.step_count
-
-        if optimize_clear_loops and _is_clear_loop(operations, instruction):
+        counts[operation.kind] += operation.step_count
+        if use_clear and _is_clear_loop(operations, instruction):
             _store_cell(tape, pointer, 0, config)
             instruction += 3
             continue
@@ -344,8 +322,7 @@ def _execute(
                     pointer = config.tape_min + (pointer - config.tape_min) % (config.tape_max - config.tape_min + 1)
                 else:
                     raise TapeBoundsError(pointer, config.tape_min, config.tape_max, location)
-            pointer_min = min(pointer_min, pointer)
-            pointer_max = max(pointer_max, pointer)
+            pointer_min, pointer_max = min(pointer_min, pointer), max(pointer_max, pointer)
         elif operation.kind == "add":
             _store_cell(tape, pointer, tape.get(pointer, 0) + operation.argument, config)
         elif operation.kind == "output":
@@ -368,8 +345,7 @@ def _execute(
             else:
                 character = b"" if isinstance(input_data, bytes) else ""
             if character:
-                value = character if isinstance(character, int) else ord(character)
-                _store_cell(tape, pointer, value, config)
+                _store_cell(tape, pointer, character if isinstance(character, int) else ord(character), config)
             elif config.eof_mode == "zero":
                 _store_cell(tape, pointer, 0, config)
             elif config.eof_mode == "error":
@@ -379,36 +355,21 @@ def _execute(
         elif operation.kind == "jump_if_nonzero" and tape.get(pointer, 0) != 0:
             instruction = operation.argument
         instruction += 1
-
     if profile is not None:
         profile.clear()
         profile.update({"steps": steps, "elapsed_seconds": time.perf_counter() - started,
                         "pointer_min": pointer_min, "pointer_max": pointer_max,
-                        "nonzero_cells": len(tape), "instruction_counts": dict(instruction_counts)})
+                        "nonzero_cells": len(tape), "instruction_counts": dict(counts)})
     return bytes(output_bytes) if config.output_mode == "byte" else "".join(output_text)
-
-
-def _configuration(
-    mode: str, cell_mode: str | None, cell_bits: int | str | None, tape_min: int | str | None,
-    tape_max: int | str | None, pointer_bounds: str | None, eof_mode: str | None, output_mode: str | None,
-    max_steps: int | None, optimize: bool, optimization_level: int | None,
-) -> tuple[_RuntimeConfig, int]:
-    if max_steps is not None and (isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 0):
-        raise ValueError("max_steps must be a non-negative integer or None")
-    return (
-        _resolve_config(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode),
-        _resolve_optimization_level(optimize, optimization_level),
-    )
 
 
 def interpret(
     sourcecode: str, input_data: str = "", input_reader: Callable[[], str] | None = None, *,
     mode: str = "unlimited", cell_mode: str | None = None, cell_bits: int | str | None = None,
     tape_min: int | str | None = None, tape_max: int | str | None = None,
-    pointer_bounds: str | None = None, eof_mode: str | None = None, output_mode: str | None = None, max_steps: int | None = None,
-    optimize: bool = True, optimization_level: int | None = None,
-    trace: Callable[[dict[str, object]], None] | None = None,
-    profile: dict[str, object] | None = None,
+    pointer_bounds: str | None = None, eof_mode: str | None = None, output_mode: str | None = None,
+    max_steps: int | None = None, optimize: bool = True, optimization_level: int | None = None,
+    trace: Callable[[dict[str, object]], None] | None = None, profile: dict[str, object] | None = None,
 ) -> str:
     """Execute BF source through the text API and return its output string."""
     config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, max_steps, optimize, optimization_level)
@@ -417,21 +378,18 @@ def interpret(
     if config.output_mode == "byte" and any(ord(character) > 127 for character in input_data):
         raise ValueError("text input for byte-output modes must be ASCII; use interpret_bytes for arbitrary bytes")
     result = _execute(sourcecode, input_data, input_reader, config, max_steps, level, trace, profile)
-    if isinstance(result, bytes):
-        return result.decode("latin-1")
-    return result
+    return result.decode("latin-1") if isinstance(result, bytes) else result
 
 
 def interpret_bytes(
     sourcecode: str, input_data: bytes = b"", input_reader: Callable[[], bytes] | None = None, *,
     mode: str = "strict", cell_mode: str | None = None, cell_bits: int | str | None = None,
     tape_min: int | str | None = None, tape_max: int | str | None = None,
-    pointer_bounds: str | None = None, eof_mode: str | None = None, output_mode: str | None = None, max_steps: int | None = None,
-    optimize: bool = True, optimization_level: int | None = None,
-    trace: Callable[[dict[str, object]], None] | None = None,
-    profile: dict[str, object] | None = None,
+    pointer_bounds: str | None = None, eof_mode: str | None = None, output_mode: str | None = None,
+    max_steps: int | None = None, optimize: bool = True, optimization_level: int | None = None,
+    trace: Callable[[dict[str, object]], None] | None = None, profile: dict[str, object] | None = None,
 ) -> bytes:
-    """Execute BF source with byte input and output; use for canonical BF I/O."""
+    """Execute BF source with byte input and output for canonical BF I/O."""
     config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, max_steps, optimize, optimization_level)
     if config.output_mode != "byte":
         raise ValueError("interpret_bytes requires output_mode='byte'")
@@ -442,254 +400,18 @@ def interpret_bytes(
     return result
 
 
-def compile_to_python(
-    sourcecode: str, *, mode: str = "unlimited", cell_mode: str | None = None,
-    cell_bits: int | str | None = None, tape_min: int | str | None = None,
-    tape_max: int | str | None = None, eof_mode: str | None = None,
-    pointer_bounds: str | None = None, output_mode: str | None = None, max_steps: int | None = None,
-    optimize: bool = True, optimization_level: int | None = None,
-) -> str:
-    """Return standalone Python with compiled BF operations and embedded configuration."""
-    config, level = _configuration(
-        mode,
-        cell_mode,
-        cell_bits,
-        tape_min,
-        tape_max,
-        pointer_bounds,
-        eof_mode,
-        output_mode,
-        max_steps,
-        optimize,
-        optimization_level,
-    )
-    optimize_moves = level >= 1 and max_steps is None and config.tape_min is None and config.tape_max is None
-    optimize_additions = level >= 1 and max_steps is None
-    operations = _compile(sourcecode, optimize_moves, optimize_additions)
-    if level == 2 and config.cell_mode == "wrap" and max_steps is None:
-        operations = _optimize_clear_operations(operations)
-    serialized_operations = [(operation.kind, operation.argument, operation.step_count) for operation in operations]
-    return f'''"""Generated by unlimited-brainfuck."""
-import sys
+def compile_to_python(*args: object, **kwargs: object) -> str:
+    """Lazily import the generator so runtime users do not load CLI code."""
+    from bf_codegen import compile_to_python as compile_program
 
-SOURCE = {sourcecode!r}
-CELL_MODE = {config.cell_mode!r}
-CELL_BITS = {config.cell_bits!r}
-TAPE_MIN = {config.tape_min!r}
-TAPE_MAX = {config.tape_max!r}
-POINTER_BOUNDS = {config.pointer_bounds!r}
-EOF_MODE = {config.eof_mode!r}
-OUTPUT_MODE = {config.output_mode!r}
-MAX_STEPS = {max_steps!r}
-OPTIMIZATION_LEVEL = {level!r}
-OPERATIONS = {serialized_operations!r}
-
-tape = {{}}
-pointer = instruction = steps = 0
-input_stream = sys.stdin.buffer if OUTPUT_MODE == "byte" else sys.stdin
-output_stream = sys.stdout.buffer if OUTPUT_MODE == "byte" else sys.stdout
-while instruction < len(OPERATIONS):
-    operation, argument, step_count = OPERATIONS[instruction]
-    if MAX_STEPS is not None and steps + step_count > MAX_STEPS:
-        raise RuntimeError(f"maximum step count {{MAX_STEPS}} reached after {{steps}} steps")
-    steps += step_count
-    value = tape.get(pointer, 0)
-    if operation == "move":
-        pointer += argument
-        if (TAPE_MIN is not None and pointer < TAPE_MIN) or (TAPE_MAX is not None and pointer > TAPE_MAX):
-            if POINTER_BOUNDS == "wrap":
-                pointer = TAPE_MIN + (pointer - TAPE_MIN) % (TAPE_MAX - TAPE_MIN + 1)
-            else:
-                raise IndexError(f"pointer {{pointer}} is outside Tape range [{{TAPE_MIN}}, {{TAPE_MAX}}]")
-    elif operation == "add":
-        value += argument
-        if CELL_MODE == "wrap":
-            value %= 1 << CELL_BITS
-        if value:
-            tape[pointer] = value
-        else:
-            tape.pop(pointer, None)
-    elif operation == "clear":
-        tape.pop(pointer, None)
-    elif operation == "output":
-        if OUTPUT_MODE == "byte":
-            output_stream.write(bytes([value & 0xFF]))
-        else:
-            output_stream.write(chr(value))
-    elif operation == "input":
-        character = input_stream.read(1)
-        if character:
-            value = character[0] if isinstance(character, bytes) else ord(character)
-            if CELL_MODE == "wrap":
-                value %= 1 << CELL_BITS
-            if value:
-                tape[pointer] = value
-            else:
-                tape.pop(pointer, None)
-        elif EOF_MODE == "zero":
-            tape.pop(pointer, None)
-        elif EOF_MODE == "error":
-            raise EOFError("input exhausted")
-    elif operation == "jump_if_zero" and value == 0:
-        instruction = argument
-    elif operation == "jump_if_nonzero" and value != 0:
-        instruction = argument
-    instruction += 1
-'''
+    return compile_program(*args, **kwargs)
 
 
-def _parse_non_negative_integer(value: str) -> int:
-    try:
-        parsed = int(value)
-    except ValueError as error:
-        raise argparse.ArgumentTypeError("must be an integer") from error
-    if parsed < 0:
-        raise argparse.ArgumentTypeError("must be non-negative")
-    return parsed
+def main(argv: list[str] | None = None, stdin: object | None = None) -> int:
+    """Lazily import the CLI while preserving the historical entry point."""
+    from bf_cli import main as run_cli
 
-
-def _parse_bound(value: str) -> int | str:
-    if value == UNBOUNDED:
-        return value
-    try:
-        return int(value)
-    except ValueError as error:
-        raise argparse.ArgumentTypeError(f"must be an integer or '{UNBOUNDED}'") from error
-
-
-def _parse_cell_bits(value: str) -> int | str:
-    if value == UNBOUNDED:
-        return value
-    try:
-        parsed = int(value)
-    except ValueError as error:
-        raise argparse.ArgumentTypeError(f"must be a positive integer or '{UNBOUNDED}'") from error
-    if parsed < 1:
-        raise argparse.ArgumentTypeError("must be a positive integer")
-    return parsed
-
-
-def _trace_writer(stream: TextIO, trace_format: str) -> Callable[[dict[str, object]], None]:
-    def write(event: dict[str, object]) -> None:
-        if trace_format == "jsonl":
-            stream.write(json.dumps(event, sort_keys=True) + "\n")
-        else:
-            stream.write("step={step} {location} op={operation} arg={argument} pointer={pointer} cell={cell}\n".format(**event))
-    return write
-
-
-def _dump_ir(
-    sourcecode: str,
-    config: _RuntimeConfig,
-    optimization_level: int,
-    observable: bool,
-    stream: TextIO,
-) -> None:
-    operations = _compile(
-        sourcecode,
-        optimization_level >= 1 and config.tape_min is None and config.tape_max is None and not observable,
-        optimization_level >= 1 and not observable,
-    )
-    for index, operation in enumerate(operations):
-        stream.write(f"{index:04d} {operation.kind} {operation.argument} steps={operation.step_count} {_location(sourcecode, operation.source_offset)}\n")
-
-
-def _extract_compile_target(arguments: list[str]) -> tuple[list[str], str | None]:
-    """Parse ``--compile-python [OUTPUT]`` while leaving the source positional argument."""
-    if "--compile-python" not in arguments:
-        return arguments, None
-    index = arguments.index("--compile-python")
-    if arguments.count("--compile-python") > 1:
-        raise ValueError("--compile-python can be specified only once")
-    if index >= len(arguments) - 1:
-        raise ValueError("--compile-python requires a BF source file")
-    target = None if index == len(arguments) - 2 else arguments[index + 1]
-    remaining = arguments[:index] + arguments[index + 1 + (target is not None) :]
-    return remaining, target
-
-
-def main(argv: list[str] | None = None, stdin: TextIO | None = None) -> int:
-    """Run a Brainfuck source file and write its output to standard output."""
-    raw_arguments = list(sys.argv[1:] if argv is None else argv)
-    try:
-        raw_arguments, compile_target = _extract_compile_target(raw_arguments)
-    except ValueError as error:
-        print(f"brainfuck.py: error: {error}", file=sys.stderr)
-        return 2
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("source_file", metavar="code.bf")
-    parser.add_argument("-m", "--mode", choices=PROFILES, default="unlimited")
-    parser.add_argument("--cell-mode", choices=(UNBOUNDED, "wrap"))
-    parser.add_argument("-b", "--cell-bits", type=_parse_cell_bits)
-    parser.add_argument("--tape-min", type=_parse_bound)
-    parser.add_argument("--tape-max", type=_parse_bound)
-    parser.add_argument("--pointer-bounds", choices=("error", "wrap"))
-    parser.add_argument("-e", "--eof-mode", choices=("zero", "unchanged", "error"))
-    parser.add_argument("-o", "--output-mode", choices=("unicode", "byte"))
-    parser.add_argument("-s", "--max-steps", type=_parse_non_negative_integer)
-    parser.add_argument("-O", "--no-optimize", action="store_true")
-    parser.add_argument("--optimization-level", type=int, choices=(0, 1, 2))
-    parser.add_argument("--trace", action="store_true")
-    parser.add_argument("--trace-format", choices=("text", "jsonl"), default="text")
-    parser.add_argument("--trace-file")
-    parser.add_argument("--profile", action="store_true")
-    parser.add_argument("--dump-ir", action="store_true")
-    parser.epilog = "--compile-python [OUTPUT] code.bf emits standalone Python to stdout or OUTPUT."
-    arguments = parser.parse_args(raw_arguments)
-    config, level = _configuration(arguments.mode, arguments.cell_mode, arguments.cell_bits, arguments.tape_min,
-                            arguments.tape_max, arguments.pointer_bounds, arguments.eof_mode, arguments.output_mode,
-                            arguments.max_steps, not arguments.no_optimize, arguments.optimization_level)
-    sourcecode = Path(arguments.source_file).read_text(encoding="utf-8")
-    if compile_target is not None or "--compile-python" in (sys.argv[1:] if argv is None else argv):
-        generated = compile_to_python(
-            sourcecode, mode=arguments.mode, cell_mode=arguments.cell_mode, cell_bits=arguments.cell_bits,
-            tape_min=arguments.tape_min, tape_max=arguments.tape_max, pointer_bounds=arguments.pointer_bounds,
-            eof_mode=arguments.eof_mode,
-            output_mode=arguments.output_mode, max_steps=arguments.max_steps,
-            optimize=not arguments.no_optimize, optimization_level=level,
-        )
-        if compile_target is None:
-            sys.stdout.write(generated)
-        else:
-            Path(compile_target).write_text(generated, encoding="utf-8")
-        return 0
-    if arguments.dump_ir:
-        _dump_ir(sourcecode, config, level, arguments.trace or arguments.profile, sys.stderr)
-    trace_stream: TextIO | None = None
-    close_trace = False
-    if arguments.trace:
-        trace_stream = open(arguments.trace_file, "w", encoding="utf-8") if arguments.trace_file else sys.stderr
-        close_trace = trace_stream is not sys.stderr
-    try:
-        profile: dict[str, object] | None = {} if arguments.profile else None
-        trace = _trace_writer(trace_stream, arguments.trace_format) if trace_stream else None
-        if config.output_mode == "byte":
-            input_stream = getattr(stdin or sys.stdin, "buffer", stdin or sys.stdin)
-            output_stream = sys.stdout.buffer
-            output_stream.write(interpret_bytes(sourcecode, input_reader=lambda: input_stream.read(1),
-                                                mode=arguments.mode, cell_mode=arguments.cell_mode,
-                                                cell_bits=arguments.cell_bits, tape_min=arguments.tape_min,
-                                                tape_max=arguments.tape_max, pointer_bounds=arguments.pointer_bounds,
-                                                eof_mode=arguments.eof_mode,
-                                                output_mode=arguments.output_mode, max_steps=arguments.max_steps,
-                                                optimize=not arguments.no_optimize, optimization_level=level,
-                                                trace=trace, profile=profile))
-        else:
-            input_stream = stdin or sys.stdin
-            sys.stdout.write(interpret(sourcecode, input_reader=lambda: input_stream.read(1),
-                                       mode=arguments.mode, cell_mode=arguments.cell_mode,
-                                       cell_bits=arguments.cell_bits, tape_min=arguments.tape_min,
-                                       tape_max=arguments.tape_max, pointer_bounds=arguments.pointer_bounds,
-                                       eof_mode=arguments.eof_mode,
-                                       output_mode=arguments.output_mode, max_steps=arguments.max_steps,
-                                       optimize=not arguments.no_optimize, optimization_level=level,
-                                       trace=trace, profile=profile))
-        if profile is not None:
-            sys.stderr.write(json.dumps(profile, sort_keys=True) + "\n")
-    finally:
-        if close_trace and trace_stream is not None:
-            trace_stream.close()
-    return 0
+    return run_cli(argv, stdin)
 
 
 if __name__ == "__main__":

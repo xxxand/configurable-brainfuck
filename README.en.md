@@ -1,8 +1,8 @@
 # Unlimited Brainfuck Interpreter
 
-[中文](README.md)
+[中文](README.md) | English
 
-A single-file, configurable Brainfuck (BF) interpreter implemented with the Python standard library. The default is an unrestricted mode without artificial boundaries, and it can also run in 8-bit standard-compatible modes.
+A configurable Brainfuck (BF) interpreter with a single public entry point, implemented with the Python standard library. The default is an unrestricted mode without artificial boundaries, and it can also run in 8-bit standard-compatible modes.
 
 ## Features
 
@@ -16,6 +16,15 @@ A single-file, configurable Brainfuck (BF) interpreter implemented with the Pyth
 ## Requirements
 
 Python 3.10 or later is required. No third-party dependencies are needed.
+
+## Project Layout
+
+- `brainfuck.py`: stable public API, runtime configuration, IR compilation, and interpretation.
+- `bf_cli.py`: command-line parsing, standard streams, tracing, profiling, and IR output.
+- `bf_codegen.py`: standalone Python generation from resolved configuration and IR.
+- `test_brainfuck.py`: semantic matrix, CLI, generator, random differential, and external-program regression tests.
+
+You can still import `brainfuck` directly or run `python brainfuck.py ...`; these internal modules do not change either entry point.
 
 ## Command Line
 
@@ -139,4 +148,4 @@ When interpreting BF, program results always go to standard output. Use shell re
 python -m unittest -v
 ```
 
-The test suite covers imports, command-line execution, lazy CLI input, standard modes, bidirectional and bounded Tape configurations, bit-width wrapping, EOF, loops, input, bracket errors, and step limits.
+The test suite covers imports, command-line execution, lazy CLI input, standard modes, bidirectional and bounded Tape configurations, bit-width wrapping, EOF, loops, input, bracket errors, and step limits. Fixed-seed randomized differential tests compare O0/O1/O2 with an independent raw 8-bit reference machine; `tests/external/` also contains an attributed Brainfuck.org regression sample.

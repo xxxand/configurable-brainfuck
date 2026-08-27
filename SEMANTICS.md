@@ -1,6 +1,6 @@
 # Brainfuck Semantic Matrix
 
-[English](SEMANTICS.en.md)
+中文 | [English](SEMANTICS.en.md)
 
 本文件是解释器的规范性行为定义。测试文件中的矩阵案例使用相同的类别和编号前缀，以避免文档与实现偏离。
 
@@ -101,3 +101,7 @@
 | `B-TAPE-02` | `>` repeated 30000 times, strict mode | `TapeBoundsError`. |
 | `B-EOF-01` | `,`, `eof_mode=error` | `EOFInputError`. |
 | `L-STEPS-01` | `++++.`, `max_steps=4` | `StepLimitExceeded(executed_steps=4)`. |
+
+## 验证策略
+
+除语义矩阵案例外，测试套件使用固定随机种子生成可终止的 8-bit 程序，并将 O0、O1、O2 解释结果与独立的逐条参考机对比。`tests/external/brainfuck.org-obscure-problems.bf` 来自 Daniel B. Cristofani 的 [Brainfuck.org 实现测试集](https://brainfuck.org/tests.b)，用于外部回归验证。

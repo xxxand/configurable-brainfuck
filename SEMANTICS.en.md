@@ -1,6 +1,6 @@
 # Brainfuck Semantic Matrix
 
-[中文](SEMANTICS.md)
+[中文](SEMANTICS.md) | English
 
 This document is the interpreter's normative behavioral definition. Matrix cases in the test file use the same category and ID prefixes so that the documentation and implementation do not diverge.
 
@@ -101,3 +101,7 @@ When `max_steps` is `N`, the interpreter executes at most `N` original BF instru
 | `B-TAPE-02` | `>` repeated 30000 times, strict mode | `TapeBoundsError`. |
 | `B-EOF-01` | `,`, `eof_mode=error` | `EOFInputError`. |
 | `L-STEPS-01` | `++++.`, `max_steps=4` | `StepLimitExceeded(executed_steps=4)`. |
+
+## Verification Strategy
+
+In addition to semantic-matrix cases, the test suite uses a fixed random seed to generate terminating 8-bit programs and compares O0, O1, and O2 results with an independent one-instruction-at-a-time reference machine. `tests/external/brainfuck.org-obscure-problems.bf` is sourced from Daniel B. Cristofani's [Brainfuck.org implementation tests](https://brainfuck.org/tests.b) for external regression coverage.

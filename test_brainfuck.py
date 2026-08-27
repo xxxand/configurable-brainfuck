@@ -1,3 +1,4 @@
+import random
 import subprocess
 import sys
 import tempfile
@@ -40,12 +41,67 @@ SEMANTIC_ERROR_CASES = (
 
 
 class BrainfuckInterpreterTests(unittest.TestCase):
+    @staticmethod
+    def _reference_standard(sourcecode: str) -> str:
+        """Unoptimized 8-bit reference machine used only for differential tests."""
+        program = [character for character in sourcecode if character in "><+-.,[]"]
+        stack: list[int] = []
+        jumps: dict[int, int] = {}
+        for position, command in enumerate(program):
+            if command == "[":
+                stack.append(position)
+            elif command == "]":
+                opening = stack.pop()
+                jumps[opening] = position
+                jumps[position] = opening
+        tape: dict[int, int] = {}
+        pointer = instruction = 0
+        output: list[str] = []
+        while instruction < len(program):
+            command = program[instruction]
+            value = tape.get(pointer, 0)
+            if command == ">":
+                pointer += 1
+            elif command == "<":
+                pointer -= 1
+            elif command == "+":
+                tape[pointer] = (value + 1) % 256
+            elif command == "-":
+                tape[pointer] = (value - 1) % 256
+            elif command == ".":
+                output.append(chr(value))
+            elif command == "[" and value == 0:
+                instruction = jumps[instruction]
+            elif command == "]" and value != 0:
+                instruction = jumps[instruction]
+            instruction += 1
+        return "".join(output)
+
     def test_imported_interpret_function(self) -> None:
         self.assertEqual(interpret(HELLO_WORLD), "Hello World!\n")
 
     def test_unrestricted_tape_and_cells(self) -> None:
         self.assertEqual(interpret("<+.>+."), "\x01\x01")
         self.assertEqual(interpret("+" * 256 + "."), chr(256))
+
+    def test_random_standard_differential_cases(self) -> None:
+        """Compare all optimization levels against a separate raw reference machine."""
+        generator = random.Random(20260827)
+        for case_number in range(100):
+            prefix = "".join(generator.choice("><+-. ") for _ in range(48))
+            counter = "+" * generator.randint(1, 8)
+            sourcecode = f"note {prefix}{counter}[>+<-]>. -[-]."
+            expected = self._reference_standard(sourcecode)
+            for level in (0, 1, 2):
+                with self.subTest(case=case_number, level=level):
+                    self.assertEqual(
+                        interpret(sourcecode, mode="standard", optimization_level=level),
+                        expected,
+                    )
+
+    def test_brainfuck_org_external_test_case(self) -> None:
+        source_file = Path(__file__).parent / "tests" / "external" / "brainfuck.org-obscure-problems.bf"
+        self.assertEqual(interpret_bytes(source_file.read_text(encoding="utf-8"), mode="strict"), b"H\n")
 
     def test_semantic_matrix_output_cases(self) -> None:
         for case_id, sourcecode, options, expected in SEMANTIC_CASES:
