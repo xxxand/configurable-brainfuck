@@ -10,17 +10,20 @@ def compile_to_python(
     cell_bits: int | str | None = None, tape_min: int | str | None = None,
     tape_max: int | str | None = None, pointer_bounds: str | None = None,
     eof_mode: str | None = None, output_mode: str | None = None, max_steps: int | None = None,
+    comment_style: str | None = None, debug_command: str | None = None,
     optimize: bool = True, optimization_level: int | None = None,
 ) -> str:
     """Return a self-contained Python script with compiled BF operations."""
     config, level = runtime._configuration(
         mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode,
-        max_steps, optimize, optimization_level,
+        comment_style, debug_command, max_steps, optimize, optimization_level,
     )
     operations = runtime._compile(
         sourcecode,
         level >= 1 and max_steps is None and config.tape_min is None and config.tape_max is None,
         level >= 1 and max_steps is None,
+        config.comment_style,
+        config.debug_command,
     )
     if level == 2 and config.cell_mode == "wrap" and max_steps is None:
         operations = runtime._optimize_clear_operations(operations)
@@ -36,6 +39,8 @@ TAPE_MAX = {config.tape_max!r}
 POINTER_BOUNDS = {config.pointer_bounds!r}
 EOF_MODE = {config.eof_mode!r}
 OUTPUT_MODE = {config.output_mode!r}
+COMMENT_STYLE = {config.comment_style!r}
+DEBUG_COMMAND = {config.debug_command!r}
 MAX_STEPS = {max_steps!r}
 OPTIMIZATION_LEVEL = {level!r}
 OPERATIONS = {serialized!r}
@@ -67,6 +72,10 @@ while instruction < len(OPERATIONS):
             tape.pop(pointer, None)
     elif operation == "clear":
         tape.pop(pointer, None)
+    elif operation == "debug":
+        cells = "".join(f"{{value if value < 128 else value - 256:4d}}" for value in (tape.get(index, 0) for index in range(64)))
+        debug_output = f"\\n{{cells}}\\n{{' ' * max(0, pointer * 4 + 4)}}^\\n"
+        output_stream.write(debug_output.encode("ascii") if OUTPUT_MODE == "byte" else debug_output)
     elif operation == "output":
         output_stream.write(bytes([value & 0xFF]) if OUTPUT_MODE == "byte" else chr(value))
     elif operation == "input":

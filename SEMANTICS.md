@@ -8,12 +8,12 @@
 
 `interpret()` 的默认 `mode="unlimited"` 保持无限制语义。其余模式是兼容性预设：
 
-| Mode | `cell_mode` | `cell_bits` | `tape_min` | `tape_max` | `pointer_bounds` | `eof_mode` | `output_mode` |
-|---|---|---:|---:|---:|---|---|---|
-| `unlimited` | `unbounded` | none | none | none | `error` | `zero` | `unicode` |
-| `standard` | `wrap` | 8 | none | none | `error` | `zero` | `byte` |
-| `standard-one-way` | `wrap` | 8 | 0 | none | `error` | `zero` | `byte` |
-| `strict` | `wrap` | 8 | 0 | 29999 | `error` | `zero` | `byte` |
+| Mode | `cell_mode` | `cell_bits` | `tape_min` | `tape_max` | `pointer_bounds` | `eof_mode` | `output_mode` | `comment_style` | `debug_command` |
+|---|---|---:|---:|---:|---|---|---|---|---|
+| `unlimited` | `unbounded` | none | none | none | `error` | `zero` | `unicode` | `none` | `none` |
+| `standard` | `wrap` | 8 | none | none | `error` | `zero` | `byte` | `none` | `none` |
+| `standard-one-way` | `wrap` | 8 | 0 | none | `error` | `zero` | `byte` | `none` | `none` |
+| `strict` | `wrap` | 8 | 0 | 29999 | `error` | `zero` | `byte` | `none` | `none` |
 
 非 `None` 的细调参数覆盖预设。`cell_bits`、`tape_min` 和 `tape_max` 可以传入字符串 `"unbounded"`，明确取消预设的相应限制；`None` 表示继承预设。
 
@@ -28,6 +28,8 @@
 | `pointer_bounds` | `error`, `wrap` | 越过有限 Tape 边界时抛错或绕回另一端。 |
 | `eof_mode` | `zero`, `unchanged`, `error` | `,` 在输入耗尽时的行为。 |
 | `output_mode` | `unicode`, `byte` | `.` 的文本编码语义。 |
+| `comment_style` | `none`, `block` | 是否预处理非嵌套的 `/* ... */` 块。 |
+| `debug_command` | `none`, `qdb` | 是否把 `#` 作为 qdb 调试指令。 |
 | `max_steps` | non-negative integer, `None` | 原始执行 BF 指令数的上限。 |
 | `optimize` | `True`, `False` | 是否合并不影响语义的连续操作。 |
 
@@ -48,7 +50,7 @@
 | `[` | 当前 Cell 为 `0` 时跳过匹配 `]` | 相同 | 括号必须匹配。 |
 | `]` | 当前 Cell 非 `0` 时跳回匹配 `[` 后 | 相同 | 括号必须匹配。 |
 
-所有非 BF 指令字符会被忽略。源码中的空白与注释不影响指令位置之外的语义。
+默认所有非 BF 指令字符会被忽略，包含 `#`。`comment_style="block"` 会先把非嵌套 `/* ... */` 块替换为等长空白，保留原始位置；未闭合块会引发 `SyntaxError`。`debug_command="qdb"` 使 `#` 成为第九条扩展指令，要求 8-bit 回绕 Cell，并按 qdb 格式向程序输出一个空行、索引 `0..63` 的 signed-byte Cell 视图和指针 `^`。两项扩展默认关闭。
 
 ## EOF Matrix
 
@@ -72,7 +74,7 @@
 
 `--optimization-level 0` 逐条执行原始 BF 指令。级别 `1`（默认）会合并连续的 `+` / `-`，并在没有 Tape 边界、步数限制、trace 或 profile 时合并连续 `>` / `<`。级别 `2` 仅在固定宽度 `wrap` Cell、没有步数限制、trace 或 profile 时，将恰好匹配 `[-]` 或 `[+]` 的循环折叠为清零；无限整数 Cell 下不使用该优化，因为负数值可能不终止。
 
-`compile_to_python()` 和 `--compile-python [OUTPUT] code.bf` 生成独立 Python 脚本。未指定 `OUTPUT` 时脚本写到标准输出，指定后写入目标路径。生成脚本嵌入已解析的配置及 `OPERATIONS` IR：O0 为逐原始指令，O1 合并连续操作并保留其原始步数，O2 在符合条件时加入 `clear` 操作。启用 `max_steps` 或有限 Tape 时，生成器禁用会影响精确步数或中间边界检查的合并。
+`compile_to_python()` 和 `--compile-python [OUTPUT] code.b` 生成独立 Python 脚本。未指定 `OUTPUT` 时脚本写到标准输出，指定后写入目标路径。生成脚本嵌入已解析的配置及 `OPERATIONS` IR：O0 为逐原始指令，O1 合并连续操作并保留其原始步数，O2 在符合条件时加入 `clear` 操作。启用 `max_steps` 或有限 Tape 时，生成器禁用会影响精确步数或中间边界检查的合并。
 
 ## Step Matrix
 

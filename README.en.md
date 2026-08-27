@@ -31,22 +31,22 @@ You can still import `brainfuck` directly or run `python brainfuck.py ...`; thes
 Run from the project directory:
 
 ```powershell
-python brainfuck.py code.bf
+python brainfuck.py code.b
 ```
 
 Use the 8-bit standard mode, one-way standard mode, or the common strict 30,000-Cell mode:
 
 ```powershell
-python brainfuck.py --mode standard code.bf
-python brainfuck.py --mode standard-one-way code.bf
-python brainfuck.py --mode strict code.bf
+python brainfuck.py --mode standard code.b
+python brainfuck.py --mode standard-one-way code.b
+python brainfuck.py --mode strict code.b
 ```
 
 Frequently used options have short forms: `-m` (mode), `-b` (Cell bit width), `-e` (EOF behavior), `-o` (output mode), `-s` (maximum steps), and `-O` (disable optimization).
 
 ```powershell
-python brainfuck.py -m strict -s 100000 code.bf
-python brainfuck.py -b 16 -o byte code.bf
+python brainfuck.py -m strict -s 100000 code.b
+python brainfuck.py -b 16 -o byte code.b
 ```
 
 Use `--optimization-level 0`, `1`, or `2`: `0` executes one instruction at a time, `1` combines consecutive moves and changes (the default), and `2` additionally folds safe `[-]` and `[+]` clear loops in fixed-width wrapping-Cell modes. With `max_steps`, tracing, or profiling enabled, the interpreter preserves the source-level operations needed for exact semantics.
@@ -54,12 +54,12 @@ Use `--optimization-level 0`, `1`, or `2`: `0` executes one instruction at a tim
 Fine-grained configuration examples:
 
 ```powershell
-python brainfuck.py --cell-bits 16 --tape-min 0 --tape-max 65535 code.bf
-python brainfuck.py --mode strict --tape-max unbounded --max-steps 100000 code.bf
-python brainfuck.py --mode strict --pointer-bounds wrap code.bf
+python brainfuck.py --cell-bits 16 --tape-min 0 --tape-max 65535 code.b
+python brainfuck.py --mode strict --tape-max unbounded --max-steps 100000 code.b
+python brainfuck.py --mode strict --pointer-bounds wrap code.b
 ```
 
-`code.bf` is a Hello World example and prints:
+`code.b` is a Hello World example and prints:
 
 ```text
 Hello World!
@@ -103,6 +103,9 @@ interpret(sourcecode, max_steps=100_000)
 
 # Wrap a finite Tape pointer: moving left from 0 goes to 29999.
 interpret(sourcecode, mode="strict", pointer_bounds="wrap")
+
+# Enable /* ... */ block comments and qdb's # debugging extension.
+interpret(sourcecode, mode="strict", comment_style="block", debug_command="qdb")
 ```
 
 ## Semantics
@@ -119,28 +122,39 @@ See [SEMANTICS.en.md](SEMANTICS.en.md) for the complete definition of modes, opt
 `--trace` writes execution details to standard error and leaves BF program standard output clean. `--trace-format jsonl` emits stable JSON Lines, and `--trace-file` writes the trace to a separate file.
 
 ```powershell
-python brainfuck.py --trace code.bf
-python brainfuck.py --trace --trace-format jsonl --trace-file trace.jsonl code.bf
-python brainfuck.py --profile --dump-ir code.bf
+python brainfuck.py --trace code.b
+python brainfuck.py --trace --trace-format jsonl --trace-file trace.jsonl code.b
+python brainfuck.py --profile --dump-ir code.b
 ```
 
 `--profile` writes JSON to standard error with original instruction steps, elapsed time, pointer range, nonzero Cell count, and operation counts. `--dump-ir` shows internal operations, combined runs, jump targets, and source locations. With `--trace` or `--profile`, moves and changes are not combined so observations remain source-accurate.
 
 Standard-compatible modes (`standard`, `standard-one-way`, and `strict`) use raw byte streams for CLI I/O. The module API's `interpret_bytes()` provides the same binary semantics; `interpret()` accepts only ASCII text input in byte-output modes.
 
+## Optional Extensions
+
+By default, only the eight BF instructions are active, so `#` and `/* ... */` do not change existing program behavior. Two nonstandard extensions can be enabled explicitly:
+
+```powershell
+python brainfuck.py -m strict --comment-style block --debug-command qdb code.b
+```
+
+- `comment_style="block"` removes non-nested `/* ... */` blocks, so BF instructions inside them do not execute. An unclosed block reports its original source location.
+- `debug_command="qdb"` recognizes `#` as Daniel B. Cristofani's `qdb.c` debugging instruction: it outputs a signed 8-bit view of the first 64 Cells and a pointer `^`. This extension requires 8-bit wrapping Cells and writes to BF program standard output.
+
 ## Compile To Python
 
 `compile_to_python(sourcecode, optimization_level=...)` returns standalone Python program text that depends only on the Python standard library. Generated scripts embed BF source, the selected configuration, and compiled `OPERATIONS` IR. O0 emits one operation per original instruction, O1 combines consecutive operations while retaining original step counts, and O2 emits `clear` operations when safe.
 
-Use `--compile-python [OUTPUT] code.bf` on the command line. With no `OUTPUT`, generated code goes to standard output; with an output path, it is written to that file:
+Use `--compile-python [OUTPUT] code.b` on the command line. With no `OUTPUT`, generated code goes to standard output; with an output path, it is written to that file:
 
 ```powershell
-python brainfuck.py --compile-python code.bf > program.py
-python brainfuck.py --compile-python program.py code.bf
-python brainfuck.py --compile-python code.bf | python
+python brainfuck.py --compile-python code.b > program.py
+python brainfuck.py --compile-python program.py code.b
+python brainfuck.py --compile-python code.b | python
 ```
 
-When interpreting BF, program results always go to standard output. Use shell redirection to save them, for example `python brainfuck.py code.bf > result.bin`.
+When interpreting BF, program results always go to standard output. Use shell redirection to save them, for example `python brainfuck.py code.b > result.bin`.
 
 ## Tests
 

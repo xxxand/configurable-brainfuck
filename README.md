@@ -31,22 +31,22 @@
 在项目目录执行：
 
 ```powershell
-python brainfuck.py code.bf
+python brainfuck.py code.b
 ```
 
 使用 8-bit 标准模式、单向标准模式或常见 30,000 Cell 严格模式：
 
 ```powershell
-python brainfuck.py --mode standard code.bf
-python brainfuck.py --mode standard-one-way code.bf
-python brainfuck.py --mode strict code.bf
+python brainfuck.py --mode standard code.b
+python brainfuck.py --mode standard-one-way code.b
+python brainfuck.py --mode strict code.b
 ```
 
 高频参数可使用短形式：`-m`（模式）、`-b`（Cell 位宽）、`-e`（EOF 行为）、`-o`（输出模式）、`-s`（最大步数）和 `-O`（关闭优化）。
 
 ```powershell
-python brainfuck.py -m strict -s 100000 code.bf
-python brainfuck.py -b 16 -o byte code.bf
+python brainfuck.py -m strict -s 100000 code.b
+python brainfuck.py -b 16 -o byte code.b
 ```
 
 优化级别使用 `--optimization-level 0`、`1` 或 `2`：`0` 逐条执行，`1` 合并连续移动和增减（默认），`2` 还会在固定宽度回绕 Cell 模式中安全折叠 `[-]` 与 `[+]` 清零循环。开启 `max_steps`、trace 或 profile 时，解释器会保留保证精确语义所需的逐条操作。
@@ -54,12 +54,12 @@ python brainfuck.py -b 16 -o byte code.bf
 细调示例：
 
 ```powershell
-python brainfuck.py --cell-bits 16 --tape-min 0 --tape-max 65535 code.bf
-python brainfuck.py --mode strict --tape-max unbounded --max-steps 100000 code.bf
-python brainfuck.py --mode strict --pointer-bounds wrap code.bf
+python brainfuck.py --cell-bits 16 --tape-min 0 --tape-max 65535 code.b
+python brainfuck.py --mode strict --tape-max unbounded --max-steps 100000 code.b
+python brainfuck.py --mode strict --pointer-bounds wrap code.b
 ```
 
-`code.bf` 是 Hello World 示例，输出：
+`code.b` 是 Hello World 示例，输出：
 
 ```text
 Hello World!
@@ -103,6 +103,9 @@ interpret(sourcecode, max_steps=100_000)
 
 # 有限 Tape 的指针绕回：从 0 左移到 29999
 interpret(sourcecode, mode="strict", pointer_bounds="wrap")
+
+# 启用 /* ... */ 块注释和 qdb 的 # 调试扩展
+interpret(sourcecode, mode="strict", comment_style="block", debug_command="qdb")
 ```
 
 ## 语义说明
@@ -119,28 +122,39 @@ interpret(sourcecode, mode="strict", pointer_bounds="wrap")
 `--trace` 将逐条执行信息写到标准错误，不污染 BF 程序的标准输出。`--trace-format jsonl` 输出稳定的 JSON Lines；`--trace-file` 将追踪写入单独文件。
 
 ```powershell
-python brainfuck.py --trace code.bf
-python brainfuck.py --trace --trace-format jsonl --trace-file trace.jsonl code.bf
-python brainfuck.py --profile --dump-ir code.bf
+python brainfuck.py --trace code.b
+python brainfuck.py --trace --trace-format jsonl --trace-file trace.jsonl code.b
+python brainfuck.py --profile --dump-ir code.b
 ```
 
 `--profile` 在标准错误输出 JSON，包含原始指令步数、运行时间、指针访问范围、非零 Cell 数和操作计数。`--dump-ir` 显示内部操作、合并结果、跳转目标与源代码位置。启用 `--trace` 或 `--profile` 时，移动和增减不会合并，从而保留准确的逐条观测结果。
 
 标准兼容模式 (`standard`、`standard-one-way`、`strict`) 的 CLI 使用原始字节流进行 I/O。模块 API 的 `interpret_bytes()` 提供相同的二进制语义；`interpret()` 的文本输入在 byte 输出模式中仅接受 ASCII 字符。
 
+## 可选扩展
+
+默认只有 8 条 BF 指令生效，`#` 和 `/* ... */` 不会改变现有程序行为。可显式启用两项非标准扩展：
+
+```powershell
+python brainfuck.py -m strict --comment-style block --debug-command qdb code.b
+```
+
+- `comment_style="block"` 移除非嵌套的 `/* ... */` 块，块内的 BF 指令不会执行。未闭合块会报出原始行列位置。
+- `debug_command="qdb"` 将 `#` 识别为 Daniel B. Cristofani `qdb.c` 调试指令：输出前 64 个 Cell 的 signed 8-bit 视图及指针 `^`。该扩展要求 8-bit 回绕 Cell，并写到 BF 程序的标准输出。
+
 ## 编译为 Python
 
 `compile_to_python(sourcecode, optimization_level=...)` 返回独立、仅依赖 Python 标准库的 Python 程序文本。生成脚本嵌入 BF 源码、选定配置和编译后的 `OPERATIONS` IR。O0 为每条原始指令生成一项，O1 合并连续操作并保留原始步数，O2 在安全条件下生成 `clear` 操作。
 
-命令行使用 `--compile-python [OUTPUT] code.bf`。省略 `OUTPUT` 时生成代码写到标准输出；提供目标时写入该文件：
+命令行使用 `--compile-python [OUTPUT] code.b`。省略 `OUTPUT` 时生成代码写到标准输出；提供目标时写入该文件：
 
 ```powershell
-python brainfuck.py --compile-python code.bf > program.py
-python brainfuck.py --compile-python program.py code.bf
-python brainfuck.py --compile-python code.bf | python
+python brainfuck.py --compile-python code.b > program.py
+python brainfuck.py --compile-python program.py code.b
+python brainfuck.py --compile-python code.b | python
 ```
 
-执行 BF 时，程序结果始终写到标准输出。需要保存结果时使用 shell 重定向，例如 `python brainfuck.py code.bf > result.bin`。
+执行 BF 时，程序结果始终写到标准输出。需要保存结果时使用 shell 重定向，例如 `python brainfuck.py code.b > result.bin`。
 
 ## 测试
 

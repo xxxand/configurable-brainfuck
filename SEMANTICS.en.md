@@ -8,12 +8,12 @@ This document is the interpreter's normative behavioral definition. Matrix cases
 
 The default `interpret()` mode, `mode="unlimited"`, preserves unrestricted semantics. The other modes are compatibility presets:
 
-| Mode | `cell_mode` | `cell_bits` | `tape_min` | `tape_max` | `pointer_bounds` | `eof_mode` | `output_mode` |
-|---|---|---:|---:|---:|---|---|---|
-| `unlimited` | `unbounded` | none | none | none | `error` | `zero` | `unicode` |
-| `standard` | `wrap` | 8 | none | none | `error` | `zero` | `byte` |
-| `standard-one-way` | `wrap` | 8 | 0 | none | `error` | `zero` | `byte` |
-| `strict` | `wrap` | 8 | 0 | 29999 | `error` | `zero` | `byte` |
+| Mode | `cell_mode` | `cell_bits` | `tape_min` | `tape_max` | `pointer_bounds` | `eof_mode` | `output_mode` | `comment_style` | `debug_command` |
+|---|---|---:|---:|---:|---|---|---|---|---|
+| `unlimited` | `unbounded` | none | none | none | `error` | `zero` | `unicode` | `none` | `none` |
+| `standard` | `wrap` | 8 | none | none | `error` | `zero` | `byte` | `none` | `none` |
+| `standard-one-way` | `wrap` | 8 | 0 | none | `error` | `zero` | `byte` | `none` | `none` |
+| `strict` | `wrap` | 8 | 0 | 29999 | `error` | `zero` | `byte` | `none` | `none` |
 
 Non-`None` fine-grained arguments override the preset. `cell_bits`, `tape_min`, and `tape_max` accept the string `"unbounded"` to explicitly remove the corresponding preset limit; `None` inherits the preset.
 
@@ -28,6 +28,8 @@ When `cell_mode="wrap"` is explicitly selected without an inheritable `cell_bits
 | `pointer_bounds` | `error`, `wrap` | Raise at a finite Tape boundary or wrap to the opposite end. |
 | `eof_mode` | `zero`, `unchanged`, `error` | Behavior of `,` when input is exhausted. |
 | `output_mode` | `unicode`, `byte` | Text encoding semantics of `.`. |
+| `comment_style` | `none`, `block` | Whether to preprocess non-nested `/* ... */` blocks. |
+| `debug_command` | `none`, `qdb` | Whether `#` is a qdb debugging instruction. |
 | `max_steps` | non-negative integer, `None` | Limit on executed original BF instructions. |
 | `optimize` | `True`, `False` | Whether to combine consecutive operations without changing semantics. |
 
@@ -48,7 +50,7 @@ The initial pointer is always `0`, so configured ranges must include `0`. A `tap
 | `[` | Skips the matching `]` when the current Cell is `0` | Same | Brackets must match. |
 | `]` | Jumps to after the matching `[` when the current Cell is nonzero | Same | Brackets must match. |
 
-All non-BF characters are ignored. Whitespace and comments do not affect semantics beyond their source locations.
+By default, all non-BF characters, including `#`, are ignored. `comment_style="block"` first replaces non-nested `/* ... */` blocks with equal-length whitespace while retaining source locations; an unclosed block raises `SyntaxError`. `debug_command="qdb"` makes `#` a ninth extension instruction, requires 8-bit wrapping Cells, and writes qdb's blank line, signed-byte Cell view for indexes `0..63`, and pointer `^` to program output. Both extensions are disabled by default.
 
 ## EOF Matrix
 
@@ -72,7 +74,7 @@ With trace or profiling enabled, pointer moves and Cell changes are not combined
 
 `--optimization-level 0` executes original BF instructions one at a time. Level `1` (the default) combines consecutive `+` / `-`, and combines consecutive `>` / `<` when there are no Tape bounds, step limit, trace, or profile. Level `2` folds loops exactly matching `[-]` or `[+]` into a clear operation only with fixed-width `wrap` Cells and no step limit, trace, or profile. This optimization is not used for unbounded integer Cells because negative values may not terminate.
 
-`compile_to_python()` and `--compile-python [OUTPUT] code.bf` generate a standalone Python script. Without `OUTPUT`, the script is written to standard output; otherwise it is written to the target path. Generated scripts embed the resolved configuration and `OPERATIONS` IR: O0 has one operation per original instruction, O1 combines consecutive operations while preserving their original step count, and O2 adds `clear` operations when eligible. With `max_steps` or bounded Tape, the generator disables combinations that would affect exact step counting or intermediate bounds checks.
+`compile_to_python()` and `--compile-python [OUTPUT] code.b` generate a standalone Python script. Without `OUTPUT`, the script is written to standard output; otherwise it is written to the target path. Generated scripts embed the resolved configuration and `OPERATIONS` IR: O0 has one operation per original instruction, O1 combines consecutive operations while preserving their original step count, and O2 adds `clear` operations when eligible. With `max_steps` or bounded Tape, the generator disables combinations that would affect exact step counting or intermediate bounds checks.
 
 ## Step Matrix
 

@@ -44,6 +44,8 @@ class _RuntimeConfig:
     pointer_bounds: str
     eof_mode: str
     output_mode: str
+    comment_style: str
+    debug_command: str
 
 
 @dataclass(frozen=True)
@@ -57,10 +59,10 @@ class _Operation:
 
 
 PROFILES = {
-    "unlimited": _RuntimeConfig(UNBOUNDED, None, None, None, "error", "zero", "unicode"),
-    "standard": _RuntimeConfig("wrap", 8, None, None, "error", "zero", "byte"),
-    "standard-one-way": _RuntimeConfig("wrap", 8, 0, None, "error", "zero", "byte"),
-    "strict": _RuntimeConfig("wrap", 8, 0, 29999, "error", "zero", "byte"),
+    "unlimited": _RuntimeConfig(UNBOUNDED, None, None, None, "error", "zero", "unicode", "none", "none"),
+    "standard": _RuntimeConfig("wrap", 8, None, None, "error", "zero", "byte", "none", "none"),
+    "standard-one-way": _RuntimeConfig("wrap", 8, 0, None, "error", "zero", "byte", "none", "none"),
+    "strict": _RuntimeConfig("wrap", 8, 0, 29999, "error", "zero", "byte", "none", "none"),
 }
 
 
@@ -69,12 +71,29 @@ def _location(sourcecode: str, offset: int) -> str:
     return f"line {sourcecode.count(chr(10), 0, offset) + 1}, column {offset - sourcecode.rfind(chr(10), 0, offset)}"
 
 
-def _filter_program(sourcecode: str) -> tuple[str, list[int]]:
-    """Keep BF commands and retain their offsets for diagnostics."""
+def _filter_program(sourcecode: str, comment_style: str, debug_command: str) -> tuple[str, list[int]]:
+    """Apply extensions, then keep commands and original offsets for diagnostics."""
+    filtered_source = sourcecode
+    if comment_style == "block":
+        characters = list(sourcecode)
+        position = 0
+        while position < len(sourcecode):
+            if sourcecode.startswith("/*", position):
+                ending = sourcecode.find("*/", position + 2)
+                if ending == -1:
+                    raise SyntaxError(f"unclosed block comment at {_location(sourcecode, position)}")
+                for index in range(position, ending + 2):
+                    if characters[index] != "\n":
+                        characters[index] = " "
+                position = ending + 2
+            else:
+                position += 1
+        filtered_source = "".join(characters)
+    command_set = COMMANDS | ({"#"} if debug_command == "qdb" else set())
     commands: list[str] = []
     offsets: list[int] = []
-    for offset, character in enumerate(sourcecode):
-        if character in COMMANDS:
+    for offset, character in enumerate(filtered_source):
+        if character in command_set:
             commands.append(character)
             offsets.append(offset)
     return "".join(commands), offsets
@@ -99,9 +118,12 @@ def _build_jumps(program: str, offsets: list[int], sourcecode: str) -> dict[int,
     return jumps
 
 
-def _compile(sourcecode: str, optimize_moves: bool, optimize_additions: bool) -> list[_Operation]:
+def _compile(
+    sourcecode: str, optimize_moves: bool, optimize_additions: bool,
+    comment_style: str = "none", debug_command: str = "none",
+) -> list[_Operation]:
     """Compile BF text to IR, combining only operations allowed by the caller."""
-    program, offsets = _filter_program(sourcecode)
+    program, offsets = _filter_program(sourcecode, comment_style, debug_command)
     jumps = _build_jumps(program, offsets, sourcecode)
     operations: list[_Operation] = []
     brackets: dict[int, int] = {}
@@ -134,6 +156,8 @@ def _compile(sourcecode: str, optimize_moves: bool, optimize_additions: bool) ->
             operations.append(_Operation("output", 0, 1, offsets[position]))
         elif command == ",":
             operations.append(_Operation("input", 0, 1, offsets[position]))
+        elif command == "#":
+            operations.append(_Operation("debug", 0, 1, offsets[position]))
         elif command == "[":
             brackets[position] = len(operations)
             operations.append(_Operation("jump_if_zero", 0, 1, offsets[position]))
@@ -169,6 +193,7 @@ def _resolve_config(
     mode: str, cell_mode: str | None, cell_bits: int | str | None,
     tape_min: int | str | None, tape_max: int | str | None,
     pointer_bounds: str | None, eof_mode: str | None, output_mode: str | None,
+    comment_style: str | None, debug_command: str | None,
 ) -> _RuntimeConfig:
     if mode not in PROFILES:
         raise ValueError(f"mode must be one of: {', '.join(PROFILES)}")
@@ -212,8 +237,17 @@ def _resolve_config(
     resolved_output_mode = profile.output_mode if output_mode is None else output_mode
     if resolved_output_mode not in ("unicode", "byte"):
         raise ValueError("output_mode must be 'unicode' or 'byte'")
+    resolved_comment_style = profile.comment_style if comment_style is None else comment_style
+    if resolved_comment_style not in ("none", "block"):
+        raise ValueError("comment_style must be 'none' or 'block'")
+    resolved_debug_command = profile.debug_command if debug_command is None else debug_command
+    if resolved_debug_command not in ("none", "qdb"):
+        raise ValueError("debug_command must be 'none' or 'qdb'")
+    if resolved_debug_command == "qdb" and (resolved_cell_mode != "wrap" or resolved_cell_bits != 8):
+        raise ValueError("debug_command='qdb' requires 8-bit wrapping Cells")
     return _RuntimeConfig(resolved_cell_mode, resolved_cell_bits, resolved_tape_min, resolved_tape_max,
-                          resolved_pointer_bounds, resolved_eof_mode, resolved_output_mode)
+                          resolved_pointer_bounds, resolved_eof_mode, resolved_output_mode,
+                          resolved_comment_style, resolved_debug_command)
 
 
 def _store_cell(tape: dict[int, int], pointer: int, value: int, config: _RuntimeConfig) -> None:
@@ -223,6 +257,12 @@ def _store_cell(tape: dict[int, int], pointer: int, value: int, config: _Runtime
         tape[pointer] = value
     else:
         tape.pop(pointer, None)
+
+
+def _qdb_debug_output(tape: dict[int, int], pointer: int) -> str:
+    """Render qdb's 64 signed-byte Cell view and its pointer marker."""
+    cells = "".join(f"{value if value < 128 else value - 256:4d}" for value in (tape.get(index, 0) for index in range(64)))
+    return f"\n{cells}\n{' ' * max(0, pointer * 4 + 4)}^\n"
 
 
 def _is_clear_loop(operations: list[_Operation], instruction: int) -> bool:
@@ -273,11 +313,12 @@ def _resolve_optimization_level(optimize: bool, optimization_level: int | None) 
 def _configuration(
     mode: str, cell_mode: str | None, cell_bits: int | str | None, tape_min: int | str | None,
     tape_max: int | str | None, pointer_bounds: str | None, eof_mode: str | None, output_mode: str | None,
+    comment_style: str | None, debug_command: str | None,
     max_steps: int | None, optimize: bool, optimization_level: int | None,
 ) -> tuple[_RuntimeConfig, int]:
     if max_steps is not None and (isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 0):
         raise ValueError("max_steps must be a non-negative integer or None")
-    return (_resolve_config(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode),
+    return (_resolve_config(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command),
             _resolve_optimization_level(optimize, optimization_level))
 
 
@@ -291,6 +332,8 @@ def _execute(
         sourcecode,
         optimization_level >= 1 and max_steps is None and config.tape_min is None and config.tape_max is None and not observable,
         optimization_level >= 1 and max_steps is None and not observable,
+        config.comment_style,
+        config.debug_command,
     )
     tape: dict[int, int] = {}
     pointer = instruction = input_position = steps = 0
@@ -350,6 +393,12 @@ def _execute(
                 _store_cell(tape, pointer, 0, config)
             elif config.eof_mode == "error":
                 raise EOFInputError(f"input exhausted at {location}")
+        elif operation.kind == "debug":
+            debug_output = _qdb_debug_output(tape, pointer)
+            if config.output_mode == "byte":
+                output_bytes.extend(debug_output.encode("ascii"))
+            else:
+                output_text.append(debug_output)
         elif operation.kind == "jump_if_zero" and tape.get(pointer, 0) == 0:
             instruction = operation.argument
         elif operation.kind == "jump_if_nonzero" and tape.get(pointer, 0) != 0:
@@ -368,11 +417,12 @@ def interpret(
     mode: str = "unlimited", cell_mode: str | None = None, cell_bits: int | str | None = None,
     tape_min: int | str | None = None, tape_max: int | str | None = None,
     pointer_bounds: str | None = None, eof_mode: str | None = None, output_mode: str | None = None,
+    comment_style: str | None = None, debug_command: str | None = None,
     max_steps: int | None = None, optimize: bool = True, optimization_level: int | None = None,
     trace: Callable[[dict[str, object]], None] | None = None, profile: dict[str, object] | None = None,
 ) -> str:
     """Execute BF source through the text API and return its output string."""
-    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, max_steps, optimize, optimization_level)
+    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command, max_steps, optimize, optimization_level)
     if not isinstance(input_data, str):
         raise TypeError("input_data must be str; use interpret_bytes for byte input")
     if config.output_mode == "byte" and any(ord(character) > 127 for character in input_data):
@@ -386,11 +436,12 @@ def interpret_bytes(
     mode: str = "strict", cell_mode: str | None = None, cell_bits: int | str | None = None,
     tape_min: int | str | None = None, tape_max: int | str | None = None,
     pointer_bounds: str | None = None, eof_mode: str | None = None, output_mode: str | None = None,
+    comment_style: str | None = None, debug_command: str | None = None,
     max_steps: int | None = None, optimize: bool = True, optimization_level: int | None = None,
     trace: Callable[[dict[str, object]], None] | None = None, profile: dict[str, object] | None = None,
 ) -> bytes:
     """Execute BF source with byte input and output for canonical BF I/O."""
-    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, max_steps, optimize, optimization_level)
+    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command, max_steps, optimize, optimization_level)
     if config.output_mode != "byte":
         raise ValueError("interpret_bytes requires output_mode='byte'")
     if not isinstance(input_data, bytes):

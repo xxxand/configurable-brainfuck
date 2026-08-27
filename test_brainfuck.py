@@ -84,6 +84,21 @@ class BrainfuckInterpreterTests(unittest.TestCase):
         self.assertEqual(interpret("<+.>+."), "\x01\x01")
         self.assertEqual(interpret("+" * 256 + "."), chr(256))
 
+    def test_block_comments_and_qdb_debug_extension(self) -> None:
+        self.assertEqual(interpret("/* ++ */+.", comment_style="block"), "\x01")
+        self.assertEqual(interpret("/* ++ */+."), "\x03")
+        with self.assertRaises(SyntaxError) as caught:
+            interpret("text\n/* +", comment_style="block")
+        self.assertIn("line 2, column 1", str(caught.exception))
+
+        expected_debug = "\n" + f"{1:4d}" + f"{0:4d}" * 63 + "\n    ^\n\x01"
+        self.assertEqual(
+            interpret("+#.", mode="standard", debug_command="qdb"),
+            expected_debug,
+        )
+        with self.assertRaises(ValueError):
+            interpret("#", debug_command="qdb")
+
     def test_random_standard_differential_cases(self) -> None:
         """Compare all optimization levels against a separate raw reference machine."""
         generator = random.Random(20260827)
@@ -185,7 +200,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
     def test_command_line_file_execution(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
         with tempfile.TemporaryDirectory() as directory:
-            source_file = Path(directory) / "code.bf"
+            source_file = Path(directory) / "code.b"
             source_file.write_text(HELLO_WORLD, encoding="utf-8")
             result = subprocess.run(
                 [sys.executable, str(interpreter), str(source_file)],
@@ -249,6 +264,30 @@ class BrainfuckInterpreterTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertEqual(result.stdout, b"\x01")
 
+    def test_command_line_comment_and_debug_extensions(self) -> None:
+        interpreter = Path(__file__).with_name("brainfuck.py")
+        with tempfile.TemporaryDirectory() as directory:
+            source_file = Path(directory) / "extensions.b"
+            source_file.write_text("/* ++ */+#.", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(interpreter),
+                    "-m",
+                    "strict",
+                    "--comment-style",
+                    "block",
+                    "--debug-command",
+                    "qdb",
+                    str(source_file),
+                ],
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertTrue(result.stdout.endswith(b"\x01"))
+        self.assertIn(b"   1", result.stdout)
+
     def test_command_line_strict_uses_byte_io(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
         with tempfile.TemporaryDirectory() as directory:
@@ -308,6 +347,20 @@ class BrainfuckInterpreterTests(unittest.TestCase):
             )
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertEqual(result.stdout, b"\x01")
+
+    def test_generated_python_preserves_extensions(self) -> None:
+        generated = compile_to_python(
+            "/* ++ */+#.", mode="strict", comment_style="block", debug_command="qdb"
+        )
+        expected_debug = ("\n" + f"{1:4d}" + f"{0:4d}" * 63 + "\n    ^\n\x01").encode("ascii")
+        with tempfile.TemporaryDirectory() as directory:
+            generated_file = Path(directory) / "extensions.py"
+            generated_file.write_text(generated, encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(generated_file)], capture_output=True, check=False
+            )
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual(result.stdout, expected_debug)
 
     def test_command_line_python_compilation(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
@@ -411,7 +464,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
                 raise AssertionError("stdin should not be read")
 
         with tempfile.TemporaryDirectory() as directory:
-            source_file = Path(directory) / "code.bf"
+            source_file = Path(directory) / "code.b"
             source_file.write_text("", encoding="utf-8")
             self.assertEqual(main([str(source_file)], UnreadableInput()), 0)
 
