@@ -97,6 +97,17 @@ interpret(sourcecode, mode="strict", pointer_bounds="wrap")
 
 # Enable /* ... */ block comments and qdb's # debugging extension.
 interpret(sourcecode, mode="strict", comment_style="block", debug_command="qdb")
+
+# O0 executes one instruction at a time; O1 is the default; O2 safely optimizes clear loops.
+interpret(sourcecode, optimization_level=0)
+```
+
+`interpret()` and `compile_to_python()` share the same `optimize` and `optimization_level` interface. `optimize=False` is equivalent to `optimization_level=0`; O1 is the default, and O2 optimizes `[-]` and `[+]` only for fixed-width wrapping Cells. Both disable combinations that would skip original steps or intermediate bounds checks when `max_steps` or bounded Tape is enabled.
+
+```python
+from brainfuck import compile_to_python
+
+generated = compile_to_python(sourcecode, mode="strict", optimization_level=2)
 ```
 
 ## Semantics
@@ -135,7 +146,7 @@ python brainfuck.py -m strict --comment-style block --debug-command qdb code.b
 
 ## Compile To Python
 
-`compile_to_python(sourcecode, optimization_level=...)` returns standalone Python program text that depends only on the Python standard library. Generated scripts embed BF source, the selected configuration, and compiled `OPERATIONS` IR. O0 emits one operation per original instruction, O1 combines consecutive operations while retaining original step counts, and O2 emits `clear` operations when safe.
+`compile_to_python(sourcecode, optimize=True, optimization_level=None)` returns standalone Python program text that depends only on the Python standard library. Generated scripts embed BF source, the selected configuration, and compiled `OPERATIONS` IR. O0 emits one operation per original instruction, O1 combines consecutive operations while retaining original step counts, and O2 emits `clear` operations when safe. Generated scripts do not provide the interpreter's runtime `trace` or `profile` callbacks.
 
 Use `--compile-python [OUTPUT] code.b` on the command line. With no `OUTPUT`, generated code goes to standard output; with an output path, it is written to that file:
 

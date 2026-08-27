@@ -97,6 +97,17 @@ interpret(sourcecode, mode="strict", pointer_bounds="wrap")
 
 # 启用 /* ... */ 块注释和 qdb 的 # 调试扩展
 interpret(sourcecode, mode="strict", comment_style="block", debug_command="qdb")
+
+# O0：逐条执行；O1 是默认；O2 仅在安全条件下优化清零循环
+interpret(sourcecode, optimization_level=0)
+```
+
+`interpret()` 与 `compile_to_python()` 使用相同的 `optimize` 和 `optimization_level` 接口。`optimize=False` 等价于 `optimization_level=0`；O1 是默认，O2 仅在固定宽度回绕 Cell 下优化 `[-]` 和 `[+]`。两者在启用 `max_steps` 或有限 Tape 时都会禁用可能跳过原始步数或中间边界检查的合并。
+
+```python
+from brainfuck import compile_to_python
+
+generated = compile_to_python(sourcecode, mode="strict", optimization_level=2)
 ```
 
 ## 语义说明
@@ -135,7 +146,7 @@ python brainfuck.py -m strict --comment-style block --debug-command qdb code.b
 
 ## 编译为 Python
 
-`compile_to_python(sourcecode, optimization_level=...)` 返回独立、仅依赖 Python 标准库的 Python 程序文本。生成脚本嵌入 BF 源码、选定配置和编译后的 `OPERATIONS` IR。O0 为每条原始指令生成一项，O1 合并连续操作并保留原始步数，O2 在安全条件下生成 `clear` 操作。
+`compile_to_python(sourcecode, optimize=True, optimization_level=None)` 返回独立、仅依赖 Python 标准库的 Python 程序文本。生成脚本嵌入 BF 源码、选定配置和编译后的 `OPERATIONS` IR。O0 为每条原始指令生成一项，O1 合并连续操作并保留原始步数，O2 在安全条件下生成 `clear` 操作。生成脚本不提供解释器运行期的 `trace` 或 `profile` 回调。
 
 命令行使用 `--compile-python [OUTPUT] code.b`。省略 `OUTPUT` 时生成代码写到标准输出；提供目标时写入该文件：
 
