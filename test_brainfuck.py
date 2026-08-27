@@ -138,6 +138,33 @@ class BrainfuckInterpreterTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertEqual(result.stdout, b"\x00")
 
+    def test_command_line_short_options(self) -> None:
+        interpreter = Path(__file__).with_name("brainfuck.py")
+        with tempfile.TemporaryDirectory() as directory:
+            source_file = Path(directory) / "short-options.bf"
+            source_file.write_text("-[-].", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(interpreter),
+                    "-m",
+                    "standard",
+                    "-b",
+                    "8",
+                    "-o",
+                    "byte",
+                    "-s",
+                    "1000",
+                    "-O",
+                    str(source_file),
+                ],
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual(result.stdout, b"\x00")
+
     def test_command_line_does_not_read_input_without_comma(self) -> None:
         class UnreadableInput:
             def read(self, size: int = -1) -> str:

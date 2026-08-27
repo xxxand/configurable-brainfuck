@@ -31,6 +31,13 @@ python brainfuck.py --mode standard-one-way code.bf
 python brainfuck.py --mode strict code.bf
 ```
 
+高频参数可使用短形式：`-m`（模式）、`-b`（Cell 位宽）、`-e`（EOF 行为）、`-o`（输出模式）、`-s`（最大步数）和 `-O`（关闭优化）。
+
+```powershell
+python brainfuck.py -m strict -s 100000 code.bf
+python brainfuck.py -b 16 -o byte code.bf
+```
+
 细调示例：
 
 ```powershell
