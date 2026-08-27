@@ -31,8 +31,9 @@ def format_source(
 ) -> str:
     """Return a canonical line-oriented layout for Brainfuck source.
 
-    Every active command occupies one line. Opening brackets increase the
-    following indentation; closing brackets reduce their own indentation.
+    Brackets and active qdb ``#`` commands occupy their own lines. Consecutive
+    non-bracket BF commands form one instruction block. Opening brackets
+    increase the following indentation; closing brackets reduce their own.
     Ignored text on an instruction's source line becomes a trailing annotation,
     separated by ``comment_spaces`` spaces. Ignored text on its own source line
     remains standalone. Enabled block comments preserve their original line
@@ -53,6 +54,7 @@ def format_source(
     annotation_buffer: list[str] = []
     annotation_line: int | None = None
     indentation = 0
+    instruction_run = False
     position = 0
     source_line = 1
     last_command_line = 0
@@ -64,7 +66,7 @@ def format_source(
         annotation_buffer.append(text)
 
     def flush_annotation() -> None:
-        nonlocal annotation_line
+        nonlocal annotation_line, instruction_run
         annotation = _normalize_annotation("".join(annotation_buffer))
         annotation_buffer.clear()
         line = annotation_line
@@ -75,24 +77,29 @@ def format_source(
             lines[-1] += " " * comment_spaces + annotation
         else:
             lines.append(" " * (indentation * indent_width) + annotation)
+        instruction_run = False
 
     def append_command(command: str) -> None:
-        nonlocal indentation, last_command_line
+        nonlocal indentation, last_command_line, instruction_run
         flush_annotation()
         if command == "]":
             if indentation == 0:
                 raise SyntaxError(f"unmatched ']' at {_location(sourcecode, position)}")
             indentation -= 1
             opening_brackets.pop()
-        line = " " * (indentation * indent_width) + command
-        lines.append(line)
+        if command not in "[]#" and instruction_run:
+            lines[-1] += command
+        else:
+            lines.append(" " * (indentation * indent_width) + command)
         if command == "[":
             indentation += 1
             opening_brackets.append(position)
+        instruction_run = command not in "[]#"
         last_command_line = source_line
 
     def append_block_comment(comment: str, inline: bool) -> None:
         """Preserve comment line count and relative whitespace under BF indentation."""
+        nonlocal instruction_run
         comment_lines = [line.rstrip() for line in comment.splitlines()]
         if inline:
             comment_column = len(lines[-1]) + comment_spaces
@@ -101,6 +108,7 @@ def format_source(
         else:
             prefix = " " * (indentation * indent_width)
             lines.extend(prefix + line for line in comment_lines)
+        instruction_run = False
 
     while position < len(sourcecode):
         if comment_style == "block" and sourcecode.startswith("/*", position):

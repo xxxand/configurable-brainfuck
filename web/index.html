@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Configurable Brainfuck</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Browser workbench</p>
+          <h1>Configurable Brainfuck</h1>
+        </div>
+        <div class="top-actions">
+          <button id="loadHello" class="icon-button" title="Load Hello World example">Example</button>
+          <button id="formatCode" class="icon-button" title="Format source code">Format</button>
+          <button id="generatePython" class="icon-button" title="Generate standalone Python">Python</button>
+          <button id="runCode" class="run-button">Run</button>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <section class="editor-region" aria-label="Source editor">
+          <div class="section-heading"><span>Source</span><span id="sourceStats">0 commands</span></div>
+          <textarea id="source" spellcheck="false" aria-label="Brainfuck source"></textarea>
+          <div class="input-row">
+            <label for="input">Input</label>
+            <input id="input" type="text" autocomplete="off" aria-label="Program input">
+          </div>
+        </section>
+
+        <aside class="settings" aria-label="Runtime settings">
+          <div class="section-heading"><span>Runtime</span><button id="resetSettings" class="text-button">Reset</button></div>
+          <div class="setting-grid">
+            <label>Profile<select id="mode"><option value="unlimited">Unlimited</option><option value="standard">Standard</option><option value="standard-one-way">One-way</option><option value="strict">Strict</option></select></label>
+            <label>Optimization<select id="optimization"><option value="0">O0</option><option value="1" selected>O1</option><option value="2">O2</option></select></label>
+            <label>Cell mode<select id="cellMode"><option value="inherit">Profile default</option><option value="unbounded">Unbounded</option><option value="wrap">Fixed-width</option></select></label>
+            <label>Cell bits<input id="cellBits" type="number" min="1" placeholder="Profile"></label>
+            <label>Tape min<input id="tapeMin" type="number" placeholder="Profile"></label>
+            <label>Tape max<input id="tapeMax" type="number" placeholder="Profile"></label>
+            <label>Pointer boundary<select id="pointerBounds"><option value="inherit">Profile default</option><option value="error">Error</option><option value="wrap">Wrap</option></select></label>
+            <label>EOF<select id="eofMode"><option value="inherit">Profile default</option><option value="zero">Zero</option><option value="unchanged">Unchanged</option><option value="error">Error</option></select></label>
+            <label>Output<select id="outputMode"><option value="inherit">Profile default</option><option value="unicode">Unicode</option><option value="byte">Byte</option></select></label>
+            <label>Max steps<input id="maxSteps" type="number" min="0" placeholder="Unlimited"></label>
+            <label>Comments<select id="commentStyle"><option value="none">None</option><option value="block">Block</option></select></label>
+            <label>Debug command<select id="debugCommand"><option value="none">None</option><option value="qdb">qdb #</option></select></label>
+            <label>Debug view<select id="debugNumber"><option value="signed">Signed</option><option value="unsigned">Unsigned</option></select></label>
+          </div>
+        </aside>
+      </section>
+
+      <section class="results">
+        <div class="result-panel output-panel"><div class="section-heading"><span>Output</span><button id="copyOutput" class="text-button">Copy</button></div><pre id="output" class="terminal">Ready.</pre></div>
+        <div class="result-panel"><div class="section-heading"><span>Inspect</span><div class="tabs"><button class="tab active" data-view="profile">Profile</button><button class="tab" data-view="ir">IR</button><button class="tab" data-view="trace">Trace</button></div></div><pre id="inspect" class="terminal">Run a program to inspect execution.</pre></div>
+      </section>
+
+      <footer>Runs locally in your browser. Fixed-width Cells are bit patterns; output and debug views do not change execution semantics.</footer>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -168,7 +168,7 @@ When interpreting BF, program results always go to standard output. Use shell re
 
 ## Format Source Code
 
-`bf_formatter.py` puts every active BF instruction on its own line and indents by `[` and `]`. Ignored text on an instruction's source line becomes a trailing annotation two spaces after that instruction; text on its own line remains standalone. With block-comment mode enabled, `/* ... */` retains its line count and relative indentation.
+`bf_formatter.py` keeps consecutive non-bracket BF instructions in one instruction block; `[` and `]`, plus `#` when qdb is enabled, occupy their own lines and define indentation. Ignored text on an instruction's source line becomes a trailing annotation two spaces after that instruction; text on its own line remains standalone. With block-comment mode enabled, `/* ... */` retains its line count and relative indentation.
 
 ```powershell
 python bf_formatter.py code.b
@@ -184,6 +184,16 @@ from bf_formatter import format_source
 
 formatted = format_source(sourcecode, comment_style="block", debug_command="qdb")
 ```
+
+## Browser Frontend
+
+`web/` is a browser workbench with no build step. Start a static server and open `http://localhost:8000`:
+
+```powershell
+python -m http.server 8000 --directory web
+```
+
+The frontend provides source editing, modes and runtime configuration, input/output, formatting, qdb debugging, IR, tracing, profiling, and standalone Python generation. All execution runs locally in the browser. Source, input, runtime settings, and the active Inspect tab are restored from browser LocalStorage; output and execution records are not restored.
 
 ## Tests
 
