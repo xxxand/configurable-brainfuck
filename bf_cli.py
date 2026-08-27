@@ -50,12 +50,12 @@ def _trace_writer(stream: TextIO, trace_format: str) -> Callable[[dict[str, obje
             stream.write(json.dumps(event, sort_keys=True) + "\n")
         else:
             if not header_written:
-                stream.write("STEP    LOCATION       OPERATION  ARGUMENT  POINTER  CELL\n")
-                stream.write("------  -------------  ---------  --------  -------  ----\n")
+                stream.write("STEP    LOCATION       OPERATION         ARGUMENT  POINTER  CELL\n")
+                stream.write("------  -------------  ----------------  --------  -------  ----\n")
                 header_written = True
             location = str(event["location"]).replace("line ", "L").replace(", column ", ":")
             stream.write(
-                f"{int(event['step']):6}  {location:<13}  {str(event['operation']):<9}  "
+                f"{int(event['step']):6}  {location:<13}  {str(event['operation']):<16}  "
                 f"{int(event['argument']):8}  {int(event['pointer']):7}  {event['cell']}\n"
             )
     return write
