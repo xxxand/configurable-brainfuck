@@ -45,6 +45,7 @@ class _RuntimeConfig:
     cell_bits: int | None
     tape_min: int | None
     tape_max: int | None
+    pointer_bounds: str
     eof_mode: str
     output_mode: str
 
@@ -58,10 +59,10 @@ class _Operation:
 
 
 PROFILES = {
-    "unlimited": _RuntimeConfig(UNBOUNDED, None, None, None, "zero", "unicode"),
-    "standard": _RuntimeConfig("wrap", 8, None, None, "zero", "byte"),
-    "standard-one-way": _RuntimeConfig("wrap", 8, 0, None, "zero", "byte"),
-    "strict": _RuntimeConfig("wrap", 8, 0, 29999, "zero", "byte"),
+    "unlimited": _RuntimeConfig(UNBOUNDED, None, None, None, "error", "zero", "unicode"),
+    "standard": _RuntimeConfig("wrap", 8, None, None, "error", "zero", "byte"),
+    "standard-one-way": _RuntimeConfig("wrap", 8, 0, None, "error", "zero", "byte"),
+    "strict": _RuntimeConfig("wrap", 8, 0, 29999, "error", "zero", "byte"),
 }
 
 
@@ -169,7 +170,7 @@ def _resolve_bound(value: int | str | None, inherited: int | None, name: str) ->
 def _resolve_config(
     mode: str, cell_mode: str | None, cell_bits: int | str | None,
     tape_min: int | str | None, tape_max: int | str | None,
-    eof_mode: str | None, output_mode: str | None,
+    pointer_bounds: str | None, eof_mode: str | None, output_mode: str | None,
 ) -> _RuntimeConfig:
     if mode not in PROFILES:
         raise ValueError(f"mode must be one of: {', '.join(PROFILES)}")
@@ -202,14 +203,26 @@ def _resolve_config(
         raise ValueError("tape_min must allow the initial pointer position 0")
     if resolved_tape_max is not None and resolved_tape_max < 0:
         raise ValueError("tape_max must allow the initial pointer position 0")
+    resolved_pointer_bounds = profile.pointer_bounds if pointer_bounds is None else pointer_bounds
+    if resolved_pointer_bounds not in ("error", "wrap"):
+        raise ValueError("pointer_bounds must be 'error' or 'wrap'")
+    if resolved_pointer_bounds == "wrap" and (resolved_tape_min is None or resolved_tape_max is None):
+        raise ValueError("pointer_bounds='wrap' requires finite tape_min and tape_max")
     resolved_eof_mode = profile.eof_mode if eof_mode is None else eof_mode
     if resolved_eof_mode not in ("zero", "unchanged", "error"):
         raise ValueError("eof_mode must be 'zero', 'unchanged', or 'error'")
     resolved_output_mode = profile.output_mode if output_mode is None else output_mode
     if resolved_output_mode not in ("unicode", "byte"):
         raise ValueError("output_mode must be 'unicode' or 'byte'")
-    return _RuntimeConfig(resolved_cell_mode, resolved_cell_bits, resolved_tape_min, resolved_tape_max,
-                          resolved_eof_mode, resolved_output_mode)
+    return _RuntimeConfig(
+        resolved_cell_mode,
+        resolved_cell_bits,
+        resolved_tape_min,
+        resolved_tape_max,
+        resolved_pointer_bounds,
+        resolved_eof_mode,
+        resolved_output_mode,
+    )
 
 
 def _store_cell(tape: dict[int, int], pointer: int, value: int, config: _RuntimeConfig) -> None:
@@ -326,10 +339,13 @@ def _execute(
             continue
         if operation.kind == "move":
             pointer += operation.argument
+            if (config.tape_min is not None and pointer < config.tape_min) or (config.tape_max is not None and pointer > config.tape_max):
+                if config.pointer_bounds == "wrap":
+                    pointer = config.tape_min + (pointer - config.tape_min) % (config.tape_max - config.tape_min + 1)
+                else:
+                    raise TapeBoundsError(pointer, config.tape_min, config.tape_max, location)
             pointer_min = min(pointer_min, pointer)
             pointer_max = max(pointer_max, pointer)
-            if (config.tape_min is not None and pointer < config.tape_min) or (config.tape_max is not None and pointer > config.tape_max):
-                raise TapeBoundsError(pointer, config.tape_min, config.tape_max, location)
         elif operation.kind == "add":
             _store_cell(tape, pointer, tape.get(pointer, 0) + operation.argument, config)
         elif operation.kind == "output":
@@ -374,13 +390,13 @@ def _execute(
 
 def _configuration(
     mode: str, cell_mode: str | None, cell_bits: int | str | None, tape_min: int | str | None,
-    tape_max: int | str | None, eof_mode: str | None, output_mode: str | None,
+    tape_max: int | str | None, pointer_bounds: str | None, eof_mode: str | None, output_mode: str | None,
     max_steps: int | None, optimize: bool, optimization_level: int | None,
 ) -> tuple[_RuntimeConfig, int]:
     if max_steps is not None and (isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 0):
         raise ValueError("max_steps must be a non-negative integer or None")
     return (
-        _resolve_config(mode, cell_mode, cell_bits, tape_min, tape_max, eof_mode, output_mode),
+        _resolve_config(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode),
         _resolve_optimization_level(optimize, optimization_level),
     )
 
@@ -389,13 +405,13 @@ def interpret(
     sourcecode: str, input_data: str = "", input_reader: Callable[[], str] | None = None, *,
     mode: str = "unlimited", cell_mode: str | None = None, cell_bits: int | str | None = None,
     tape_min: int | str | None = None, tape_max: int | str | None = None,
-    eof_mode: str | None = None, output_mode: str | None = None, max_steps: int | None = None,
+    pointer_bounds: str | None = None, eof_mode: str | None = None, output_mode: str | None = None, max_steps: int | None = None,
     optimize: bool = True, optimization_level: int | None = None,
     trace: Callable[[dict[str, object]], None] | None = None,
     profile: dict[str, object] | None = None,
 ) -> str:
     """Execute BF source through the text API and return its output string."""
-    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, eof_mode, output_mode, max_steps, optimize, optimization_level)
+    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, max_steps, optimize, optimization_level)
     if not isinstance(input_data, str):
         raise TypeError("input_data must be str; use interpret_bytes for byte input")
     if config.output_mode == "byte" and any(ord(character) > 127 for character in input_data):
@@ -410,13 +426,13 @@ def interpret_bytes(
     sourcecode: str, input_data: bytes = b"", input_reader: Callable[[], bytes] | None = None, *,
     mode: str = "strict", cell_mode: str | None = None, cell_bits: int | str | None = None,
     tape_min: int | str | None = None, tape_max: int | str | None = None,
-    eof_mode: str | None = None, output_mode: str | None = None, max_steps: int | None = None,
+    pointer_bounds: str | None = None, eof_mode: str | None = None, output_mode: str | None = None, max_steps: int | None = None,
     optimize: bool = True, optimization_level: int | None = None,
     trace: Callable[[dict[str, object]], None] | None = None,
     profile: dict[str, object] | None = None,
 ) -> bytes:
     """Execute BF source with byte input and output; use for canonical BF I/O."""
-    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, eof_mode, output_mode, max_steps, optimize, optimization_level)
+    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, max_steps, optimize, optimization_level)
     if config.output_mode != "byte":
         raise ValueError("interpret_bytes requires output_mode='byte'")
     if not isinstance(input_data, bytes):
@@ -430,7 +446,7 @@ def compile_to_python(
     sourcecode: str, *, mode: str = "unlimited", cell_mode: str | None = None,
     cell_bits: int | str | None = None, tape_min: int | str | None = None,
     tape_max: int | str | None = None, eof_mode: str | None = None,
-    output_mode: str | None = None, max_steps: int | None = None,
+    pointer_bounds: str | None = None, output_mode: str | None = None, max_steps: int | None = None,
     optimize: bool = True, optimization_level: int | None = None,
 ) -> str:
     """Return standalone Python with compiled BF operations and embedded configuration."""
@@ -440,6 +456,7 @@ def compile_to_python(
         cell_bits,
         tape_min,
         tape_max,
+        pointer_bounds,
         eof_mode,
         output_mode,
         max_steps,
@@ -460,6 +477,7 @@ CELL_MODE = {config.cell_mode!r}
 CELL_BITS = {config.cell_bits!r}
 TAPE_MIN = {config.tape_min!r}
 TAPE_MAX = {config.tape_max!r}
+POINTER_BOUNDS = {config.pointer_bounds!r}
 EOF_MODE = {config.eof_mode!r}
 OUTPUT_MODE = {config.output_mode!r}
 MAX_STEPS = {max_steps!r}
@@ -479,7 +497,10 @@ while instruction < len(OPERATIONS):
     if operation == "move":
         pointer += argument
         if (TAPE_MIN is not None and pointer < TAPE_MIN) or (TAPE_MAX is not None and pointer > TAPE_MAX):
-            raise IndexError(f"pointer {{pointer}} is outside Tape range [{{TAPE_MIN}}, {{TAPE_MAX}}]")
+            if POINTER_BOUNDS == "wrap":
+                pointer = TAPE_MIN + (pointer - TAPE_MIN) % (TAPE_MAX - TAPE_MIN + 1)
+            else:
+                raise IndexError(f"pointer {{pointer}} is outside Tape range [{{TAPE_MIN}}, {{TAPE_MAX}}]")
     elif operation == "add":
         value += argument
         if CELL_MODE == "wrap":
@@ -602,6 +623,7 @@ def main(argv: list[str] | None = None, stdin: TextIO | None = None) -> int:
     parser.add_argument("-b", "--cell-bits", type=_parse_cell_bits)
     parser.add_argument("--tape-min", type=_parse_bound)
     parser.add_argument("--tape-max", type=_parse_bound)
+    parser.add_argument("--pointer-bounds", choices=("error", "wrap"))
     parser.add_argument("-e", "--eof-mode", choices=("zero", "unchanged", "error"))
     parser.add_argument("-o", "--output-mode", choices=("unicode", "byte"))
     parser.add_argument("-s", "--max-steps", type=_parse_non_negative_integer)
@@ -615,13 +637,14 @@ def main(argv: list[str] | None = None, stdin: TextIO | None = None) -> int:
     parser.epilog = "--compile-python [OUTPUT] code.bf emits standalone Python to stdout or OUTPUT."
     arguments = parser.parse_args(raw_arguments)
     config, level = _configuration(arguments.mode, arguments.cell_mode, arguments.cell_bits, arguments.tape_min,
-                            arguments.tape_max, arguments.eof_mode, arguments.output_mode,
+                            arguments.tape_max, arguments.pointer_bounds, arguments.eof_mode, arguments.output_mode,
                             arguments.max_steps, not arguments.no_optimize, arguments.optimization_level)
     sourcecode = Path(arguments.source_file).read_text(encoding="utf-8")
     if compile_target is not None or "--compile-python" in (sys.argv[1:] if argv is None else argv):
         generated = compile_to_python(
             sourcecode, mode=arguments.mode, cell_mode=arguments.cell_mode, cell_bits=arguments.cell_bits,
-            tape_min=arguments.tape_min, tape_max=arguments.tape_max, eof_mode=arguments.eof_mode,
+            tape_min=arguments.tape_min, tape_max=arguments.tape_max, pointer_bounds=arguments.pointer_bounds,
+            eof_mode=arguments.eof_mode,
             output_mode=arguments.output_mode, max_steps=arguments.max_steps,
             optimize=not arguments.no_optimize, optimization_level=level,
         )
@@ -646,7 +669,8 @@ def main(argv: list[str] | None = None, stdin: TextIO | None = None) -> int:
             output_stream.write(interpret_bytes(sourcecode, input_reader=lambda: input_stream.read(1),
                                                 mode=arguments.mode, cell_mode=arguments.cell_mode,
                                                 cell_bits=arguments.cell_bits, tape_min=arguments.tape_min,
-                                                tape_max=arguments.tape_max, eof_mode=arguments.eof_mode,
+                                                tape_max=arguments.tape_max, pointer_bounds=arguments.pointer_bounds,
+                                                eof_mode=arguments.eof_mode,
                                                 output_mode=arguments.output_mode, max_steps=arguments.max_steps,
                                                 optimize=not arguments.no_optimize, optimization_level=level,
                                                 trace=trace, profile=profile))
@@ -655,7 +679,8 @@ def main(argv: list[str] | None = None, stdin: TextIO | None = None) -> int:
             sys.stdout.write(interpret(sourcecode, input_reader=lambda: input_stream.read(1),
                                        mode=arguments.mode, cell_mode=arguments.cell_mode,
                                        cell_bits=arguments.cell_bits, tape_min=arguments.tape_min,
-                                       tape_max=arguments.tape_max, eof_mode=arguments.eof_mode,
+                                       tape_max=arguments.tape_max, pointer_bounds=arguments.pointer_bounds,
+                                       eof_mode=arguments.eof_mode,
                                        output_mode=arguments.output_mode, max_steps=arguments.max_steps,
                                        optimize=not arguments.no_optimize, optimization_level=level,
                                        trace=trace, profile=profile))

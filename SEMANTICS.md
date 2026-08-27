@@ -8,12 +8,12 @@
 
 `interpret()` 的默认 `mode="unlimited"` 保持无限制语义。其余模式是兼容性预设：
 
-| Mode | `cell_mode` | `cell_bits` | `tape_min` | `tape_max` | `eof_mode` | `output_mode` |
-|---|---|---:|---:|---:|---|---|
-| `unlimited` | `unbounded` | none | none | none | `zero` | `unicode` |
-| `standard` | `wrap` | 8 | none | none | `zero` | `byte` |
-| `standard-one-way` | `wrap` | 8 | 0 | none | `zero` | `byte` |
-| `strict` | `wrap` | 8 | 0 | 29999 | `zero` | `byte` |
+| Mode | `cell_mode` | `cell_bits` | `tape_min` | `tape_max` | `pointer_bounds` | `eof_mode` | `output_mode` |
+|---|---|---:|---:|---:|---|---|---|
+| `unlimited` | `unbounded` | none | none | none | `error` | `zero` | `unicode` |
+| `standard` | `wrap` | 8 | none | none | `error` | `zero` | `byte` |
+| `standard-one-way` | `wrap` | 8 | 0 | none | `error` | `zero` | `byte` |
+| `strict` | `wrap` | 8 | 0 | 29999 | `error` | `zero` | `byte` |
 
 非 `None` 的细调参数覆盖预设。`cell_bits`、`tape_min` 和 `tape_max` 可以传入字符串 `"unbounded"`，明确取消预设的相应限制；`None` 表示继承预设。
 
@@ -25,6 +25,7 @@
 | `cell_bits` | positive integer, `unbounded`, `None` | `wrap` 的范围为 `0..2**bits-1`。 |
 | `tape_min` | integer, `unbounded`, `None` | 指针允许的最小位置。 |
 | `tape_max` | integer, `unbounded`, `None` | 指针允许的最大位置。 |
+| `pointer_bounds` | `error`, `wrap` | 越过有限 Tape 边界时抛错或绕回另一端。 |
 | `eof_mode` | `zero`, `unchanged`, `error` | `,` 在输入耗尽时的行为。 |
 | `output_mode` | `unicode`, `byte` | `.` 的文本编码语义。 |
 | `max_steps` | non-negative integer, `None` | 原始执行 BF 指令数的上限。 |
@@ -32,12 +33,14 @@
 
 初始指针固定为 `0`，因此配置范围必须包含 `0`。`tape_min > tape_max`、不包含 `0` 的范围和冲突的 Cell 参数会引发 `ValueError`。
 
+`pointer_bounds="wrap"` 仅可用于同时设置有限 `tape_min` 与 `tape_max` 的 Tape。半无限或双向无限 Tape 没有可绕回的另一端，会引发 `ValueError`。默认值 `error` 保持所有模式原有的越界报错行为。
+
 ## Instruction Matrix
 
 | Instruction | Unlimited Cell | Wrap Cell | Pointer / I/O behavior |
 |---|---|---|---|
-| `>` | unchanged | unchanged | 指针加一；超过 `tape_max` 抛出 `TapeBoundsError`。 |
-| `<` | unchanged | unchanged | 指针减一；小于 `tape_min` 抛出 `TapeBoundsError`。 |
+| `>` | unchanged | unchanged | 指针加一；超过 `tape_max` 时按 `pointer_bounds` 抛 `TapeBoundsError` 或绕回 `tape_min`。 |
+| `<` | unchanged | unchanged | 指针减一；小于 `tape_min` 时按 `pointer_bounds` 抛 `TapeBoundsError` 或绕回 `tape_max`。 |
 | `+` | 加一，无上限 | 加一后模 `2**cell_bits` | 未使用 Cell 初始值为 `0`。 |
 | `-` | 减一，无下限 | 减一后模 `2**cell_bits` | 8-bit 下 `0 - 1` 为 `255`。 |
 | `.` | 当前值必须是 Unicode 码点，否则 `ValueError` | 同左，除非使用 byte 输出 | `byte` 输出当前值低 8 位对应的字符。 |

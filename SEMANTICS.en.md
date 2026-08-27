@@ -8,12 +8,12 @@ This document is the interpreter's normative behavioral definition. Matrix cases
 
 The default `interpret()` mode, `mode="unlimited"`, preserves unrestricted semantics. The other modes are compatibility presets:
 
-| Mode | `cell_mode` | `cell_bits` | `tape_min` | `tape_max` | `eof_mode` | `output_mode` |
-|---|---|---:|---:|---:|---|---|
-| `unlimited` | `unbounded` | none | none | none | `zero` | `unicode` |
-| `standard` | `wrap` | 8 | none | none | `zero` | `byte` |
-| `standard-one-way` | `wrap` | 8 | 0 | none | `zero` | `byte` |
-| `strict` | `wrap` | 8 | 0 | 29999 | `zero` | `byte` |
+| Mode | `cell_mode` | `cell_bits` | `tape_min` | `tape_max` | `pointer_bounds` | `eof_mode` | `output_mode` |
+|---|---|---:|---:|---:|---|---|---|
+| `unlimited` | `unbounded` | none | none | none | `error` | `zero` | `unicode` |
+| `standard` | `wrap` | 8 | none | none | `error` | `zero` | `byte` |
+| `standard-one-way` | `wrap` | 8 | 0 | none | `error` | `zero` | `byte` |
+| `strict` | `wrap` | 8 | 0 | 29999 | `error` | `zero` | `byte` |
 
 Non-`None` fine-grained arguments override the preset. `cell_bits`, `tape_min`, and `tape_max` accept the string `"unbounded"` to explicitly remove the corresponding preset limit; `None` inherits the preset.
 
@@ -25,6 +25,7 @@ When `cell_mode="wrap"` is explicitly selected without an inheritable `cell_bits
 | `cell_bits` | positive integer, `unbounded`, `None` | The `wrap` range is `0..2**bits-1`. |
 | `tape_min` | integer, `unbounded`, `None` | Minimum allowed pointer position. |
 | `tape_max` | integer, `unbounded`, `None` | Maximum allowed pointer position. |
+| `pointer_bounds` | `error`, `wrap` | Raise at a finite Tape boundary or wrap to the opposite end. |
 | `eof_mode` | `zero`, `unchanged`, `error` | Behavior of `,` when input is exhausted. |
 | `output_mode` | `unicode`, `byte` | Text encoding semantics of `.`. |
 | `max_steps` | non-negative integer, `None` | Limit on executed original BF instructions. |
@@ -32,12 +33,14 @@ When `cell_mode="wrap"` is explicitly selected without an inheritable `cell_bits
 
 The initial pointer is always `0`, so configured ranges must include `0`. A `tape_min` greater than `tape_max`, a range excluding `0`, or conflicting Cell parameters raises `ValueError`.
 
+`pointer_bounds="wrap"` is valid only when both `tape_min` and `tape_max` are finite. A half-unbounded or bidirectionally unbounded Tape has no opposite end to wrap to and raises `ValueError`. The default, `error`, preserves the existing out-of-bounds error behavior for every mode.
+
 ## Instruction Matrix
 
 | Instruction | Unbounded Cell | Wrap Cell | Pointer / I/O behavior |
 |---|---|---|---|
-| `>` | unchanged | unchanged | Increments the pointer; exceeding `tape_max` raises `TapeBoundsError`. |
-| `<` | unchanged | unchanged | Decrements the pointer; going below `tape_min` raises `TapeBoundsError`. |
+| `>` | unchanged | unchanged | Increments the pointer; exceeding `tape_max` raises `TapeBoundsError` or wraps to `tape_min` according to `pointer_bounds`. |
+| `<` | unchanged | unchanged | Decrements the pointer; going below `tape_min` raises `TapeBoundsError` or wraps to `tape_max` according to `pointer_bounds`. |
 | `+` | Increments without an upper bound | Increments modulo `2**cell_bits` | An unused Cell starts at `0`. |
 | `-` | Decrements without a lower bound | Decrements modulo `2**cell_bits` | With 8-bit Cells, `0 - 1` becomes `255`. |
 | `.` | The value must be a Unicode code point or `ValueError` is raised | Same unless byte output is selected | `byte` outputs the character for the Cell's low 8 bits. |

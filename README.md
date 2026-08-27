@@ -47,6 +47,7 @@ python brainfuck.py -b 16 -o byte code.bf
 ```powershell
 python brainfuck.py --cell-bits 16 --tape-min 0 --tape-max 65535 code.bf
 python brainfuck.py --mode strict --tape-max unbounded --max-steps 100000 code.bf
+python brainfuck.py --mode strict --pointer-bounds wrap code.bf
 ```
 
 `code.bf` 是 Hello World 示例，输出：
@@ -90,6 +91,9 @@ interpret(sourcecode, cell_bits=16, tape_min=0, tape_max=65535)
 
 # 保持无限 Cell，但限制最多执行 100,000 条 BF 指令
 interpret(sourcecode, max_steps=100_000)
+
+# 有限 Tape 的指针绕回：从 0 左移到 29999
+interpret(sourcecode, mode="strict", pointer_bounds="wrap")
 ```
 
 ## 语义说明

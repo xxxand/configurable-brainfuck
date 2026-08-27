@@ -47,6 +47,7 @@ Fine-grained configuration examples:
 ```powershell
 python brainfuck.py --cell-bits 16 --tape-min 0 --tape-max 65535 code.bf
 python brainfuck.py --mode strict --tape-max unbounded --max-steps 100000 code.bf
+python brainfuck.py --mode strict --pointer-bounds wrap code.bf
 ```
 
 `code.bf` is a Hello World example and prints:
@@ -90,6 +91,9 @@ interpret(sourcecode, cell_bits=16, tape_min=0, tape_max=65535)
 
 # Keep unbounded Cells, but run at most 100,000 BF instructions.
 interpret(sourcecode, max_steps=100_000)
+
+# Wrap a finite Tape pointer: moving left from 0 goes to 29999.
+interpret(sourcecode, mode="strict", pointer_bounds="wrap")
 ```
 
 ## Semantics

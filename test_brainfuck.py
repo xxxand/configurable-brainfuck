@@ -71,6 +71,18 @@ class BrainfuckInterpreterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             interpret("", mode="strict", cell_bits="unbounded", cell_mode="wrap")
 
+    def test_pointer_bounds_wrap(self) -> None:
+        self.assertEqual(
+            interpret("<+.", mode="strict", pointer_bounds="wrap"),
+            "\x01",
+        )
+        self.assertEqual(
+            interpret("<<+.", tape_min=-1, tape_max=1, pointer_bounds="wrap"),
+            "\x01",
+        )
+        with self.assertRaises(ValueError):
+            interpret("<", mode="standard-one-way", pointer_bounds="wrap")
+
     def test_explicit_configuration_overrides_profile(self) -> None:
         self.assertEqual(
             interpret(
@@ -160,6 +172,27 @@ class BrainfuckInterpreterTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertEqual(result.stdout, b"\x00")
 
+    def test_command_line_pointer_wrap(self) -> None:
+        interpreter = Path(__file__).with_name("brainfuck.py")
+        with tempfile.TemporaryDirectory() as directory:
+            source_file = Path(directory) / "wrap-pointer.bf"
+            source_file.write_text("<+.", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(interpreter),
+                    "-m",
+                    "strict",
+                    "--pointer-bounds",
+                    "wrap",
+                    str(source_file),
+                ],
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual(result.stdout, b"\x01")
+
     def test_command_line_strict_uses_byte_io(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
         with tempfile.TemporaryDirectory() as directory:
@@ -207,6 +240,18 @@ class BrainfuckInterpreterTests(unittest.TestCase):
             )
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertEqual(result.stdout, b"\x00")
+
+    def test_generated_python_preserves_pointer_wrap(self) -> None:
+        generated = compile_to_python("<+.", mode="strict", pointer_bounds="wrap")
+        self.assertIn("POINTER_BOUNDS = 'wrap'", generated)
+        with tempfile.TemporaryDirectory() as directory:
+            generated_file = Path(directory) / "wrap.py"
+            generated_file.write_text(generated, encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(generated_file)], capture_output=True, check=False
+            )
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual(result.stdout, b"\x01")
 
     def test_command_line_python_compilation(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
