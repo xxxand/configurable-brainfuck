@@ -43,6 +43,7 @@ SEMANTIC_ERROR_CASES = (
 
 class BrainfuckInterpreterTests(unittest.TestCase):
     def test_formatter_indentation_annotations_and_extensions(self) -> None:
+        self.assertEqual(format_source("+++[-]+++."), "+++\n[\n -\n]\n+++.\n")
         self.assertEqual(format_source("[[+]]"), "[\n [\n  +\n ]\n]\n")
         self.assertEqual(format_source("+// hello -"), "+  // hello\n-\n")
         self.assertEqual(format_source("hello\n+"), "hello\n+\n")

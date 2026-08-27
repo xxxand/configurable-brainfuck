@@ -168,7 +168,7 @@ python brainfuck.py --compile-python code.b | python
 
 ## 格式化代码
 
-`bf_formatter.py` 将每条有效 BF 指令放在独立行，按 `[` 与 `]` 缩进。普通无关文字若与指令同源行，会作为距指令 2 个空格的尾注释；独占行文字保持独占。启用块注释模式后，`/* ... */` 保留行数和内部相对缩进。
+`bf_formatter.py` 将连续的非括号 BF 指令保留为一个指令块，`[`、`]` 与启用 qdb 时的 `#` 独占一行，并按括号缩进。普通无关文字若与指令同源行，会作为距指令 2 个空格的尾注释；独占行文字保持独占。启用块注释模式后，`/* ... */` 保留行数和内部相对缩进。
 
 ```powershell
 python bf_formatter.py code.b
@@ -184,6 +184,16 @@ from bf_formatter import format_source
 
 formatted = format_source(sourcecode, comment_style="block", debug_command="qdb")
 ```
+
+## 浏览器前端
+
+`web/` 是无需构建步骤的浏览器工作台。启动静态服务器后访问 `http://localhost:8000`：
+
+```powershell
+python -m http.server 8000 --directory web
+```
+
+前端提供源码编辑、模式和所有运行配置、输入输出、格式化、qdb 调试、IR、trace、profile 和独立 Python 代码生成。所有执行都在浏览器本地完成。源码、输入、运行配置和当前 Inspect 标签会自动保存在浏览器 LocalStorage 中；输出和执行记录不会恢复。
 
 ## 测试
 
