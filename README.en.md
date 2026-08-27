@@ -158,6 +158,25 @@ python brainfuck.py --compile-python code.b | python
 
 When interpreting BF, program results always go to standard output. Use shell redirection to save them, for example `python brainfuck.py code.b > result.bin`.
 
+## Format Source Code
+
+`bf_formatter.py` puts every active BF instruction on its own line and indents by `[` and `]`. Ignored text on an instruction's source line becomes a trailing annotation two spaces after that instruction; text on its own line remains standalone. With block-comment mode enabled, `/* ... */` retains its line count and relative indentation.
+
+```powershell
+python bf_formatter.py code.b
+python bf_formatter.py -o formatted.b code.b
+python bf_formatter.py --in-place code.b
+python bf_formatter.py --comment-style block --debug-command qdb code.b
+```
+
+Import it as a module:
+
+```python
+from bf_formatter import format_source
+
+formatted = format_source(sourcecode, comment_style="block", debug_command="qdb")
+```
+
 ## Tests
 
 ```powershell
