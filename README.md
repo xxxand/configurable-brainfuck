@@ -2,7 +2,7 @@
 
 中文 | [English](README.en.md)
 
-一个保持单一公共入口、可配置的 Brainfuck (BF) 解释器，使用 Python 标准库实现。默认是无人工边界的无限制模式，也可切换为 8-bit 标准兼容模式。
+一个可配置的 Brainfuck (BF) 解释器，使用 Python 标准库实现。默认提供无人工边界的无限制模式，也可切换为 8-bit 标准兼容模式。
 
 ## 特性
 
@@ -16,15 +16,6 @@
 ## 环境
 
 需要 Python 3.10 或更新版本，不需要安装第三方依赖。
-
-## 项目结构
-
-- `brainfuck.py`：稳定的公共 API、运行时配置、IR 编译和解释执行。
-- `bf_cli.py`：命令行参数、标准流、trace、profile 与 IR 输出。
-- `bf_codegen.py`：将已解析的配置和 IR 生成独立 Python 脚本。
-- `test_brainfuck.py`：语义矩阵、CLI、生成器、随机差分和外部程序回归测试。
-
-仍可直接导入 `brainfuck` 或执行 `python brainfuck.py ...`；这些内部模块不改变原有入口。
 
 ## 命令行
 

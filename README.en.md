@@ -2,7 +2,7 @@
 
 [中文](README.md) | English
 
-A configurable Brainfuck (BF) interpreter with a single public entry point, implemented with the Python standard library. The default is an unrestricted mode without artificial boundaries, and it can also run in 8-bit standard-compatible modes.
+A configurable Brainfuck (BF) interpreter implemented with the Python standard library. The default is an unrestricted mode without artificial boundaries, and it can also run in 8-bit standard-compatible modes.
 
 ## Features
 
@@ -16,15 +16,6 @@ A configurable Brainfuck (BF) interpreter with a single public entry point, impl
 ## Requirements
 
 Python 3.10 or later is required. No third-party dependencies are needed.
-
-## Project Layout
-
-- `brainfuck.py`: stable public API, runtime configuration, IR compilation, and interpretation.
-- `bf_cli.py`: command-line parsing, standard streams, tracing, profiling, and IR output.
-- `bf_codegen.py`: standalone Python generation from resolved configuration and IR.
-- `test_brainfuck.py`: semantic matrix, CLI, generator, random differential, and external-program regression tests.
-
-You can still import `brainfuck` directly or run `python brainfuck.py ...`; these internal modules do not change either entry point.
 
 ## Command Line
 
