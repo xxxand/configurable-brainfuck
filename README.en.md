@@ -187,13 +187,13 @@ formatted = format_source(sourcecode, comment_style="block", debug_command="qdb"
 
 ## Browser Frontend
 
-`web/` is a browser workbench with no build step. Start a static server and open `http://localhost:8000`:
+`web/` is a browser workbench with no build step. It calls a local Python API backed by the project's actual interpreter, formatter, and generator. Start it and open `http://localhost:8000`:
 
 ```powershell
-python -m http.server 8000 --directory web
+python bf_web.py
 ```
 
-The frontend provides source editing, modes and runtime configuration, input/output, formatting, qdb debugging, IR, tracing, profiling, and standalone Python generation. All execution runs locally in the browser. Source, input, runtime settings, and the active Inspect tab are restored from browser LocalStorage; output and execution records are not restored.
+The frontend provides source editing, modes and runtime configuration, input/output, formatting, qdb debugging, IR, tracing, profiling, and standalone Python generation. All BF execution uses the local Python runtime, so browser and Python interpreter semantics cannot drift apart. Source, input, runtime settings, and the active Inspect tab are restored from browser LocalStorage; output and execution records are not restored.
 
 ## Tests
 

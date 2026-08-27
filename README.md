@@ -187,13 +187,13 @@ formatted = format_source(sourcecode, comment_style="block", debug_command="qdb"
 
 ## 浏览器前端
 
-`web/` 是无需构建步骤的浏览器工作台。启动静态服务器后访问 `http://localhost:8000`：
+`web/` 是无需构建步骤的浏览器工作台，通过本地 Python API 调用项目的实际解释器、格式化器和生成器。启动后访问 `http://localhost:8000`：
 
 ```powershell
-python -m http.server 8000 --directory web
+python bf_web.py
 ```
 
-前端提供源码编辑、模式和所有运行配置、输入输出、格式化、qdb 调试、IR、trace、profile 和独立 Python 代码生成。所有执行都在浏览器本地完成。源码、输入、运行配置和当前 Inspect 标签会自动保存在浏览器 LocalStorage 中；输出和执行记录不会恢复。
+前端提供源码编辑、模式和所有运行配置、输入输出、格式化、qdb 调试、IR、trace、profile 和独立 Python 代码生成。所有 BF 执行都由本机 Python 运行时完成，不存在浏览器与 Python 两套解释器语义偏离的问题。源码、输入、运行配置和当前 Inspect 标签会自动保存在浏览器 LocalStorage 中；输出和执行记录不会恢复。
 
 ## 测试
 
