@@ -158,6 +158,25 @@ python brainfuck.py --compile-python code.b | python
 
 执行 BF 时，程序结果始终写到标准输出。需要保存结果时使用 shell 重定向，例如 `python brainfuck.py code.b > result.bin`。
 
+## 格式化代码
+
+`bf_formatter.py` 将每条有效 BF 指令放在独立行，按 `[` 与 `]` 缩进。普通无关文字若与指令同源行，会作为距指令 2 个空格的尾注释；独占行文字保持独占。启用块注释模式后，`/* ... */` 保留行数和内部相对缩进。
+
+```powershell
+python bf_formatter.py code.b
+python bf_formatter.py -o formatted.b code.b
+python bf_formatter.py --in-place code.b
+python bf_formatter.py --comment-style block --debug-command qdb code.b
+```
+
+作为模块导入：
+
+```python
+from bf_formatter import format_source
+
+formatted = format_source(sourcecode, comment_style="block", debug_command="qdb")
+```
+
 ## 测试
 
 ```powershell

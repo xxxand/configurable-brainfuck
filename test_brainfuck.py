@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from bf_formatter import format_source, main as formatter_main
 from brainfuck import (
     EOFInputError,
     StepLimitExceeded,
@@ -41,6 +42,38 @@ SEMANTIC_ERROR_CASES = (
 
 
 class BrainfuckInterpreterTests(unittest.TestCase):
+    def test_formatter_indentation_annotations_and_extensions(self) -> None:
+        self.assertEqual(format_source("[[+]]"), "[\n [\n  +\n ]\n]\n")
+        self.assertEqual(format_source("+// hello -"), "+  // hello\n-\n")
+        self.assertEqual(format_source("hello\n+"), "hello\n+\n")
+        self.assertEqual(format_source("+#-"), "+  #\n-\n")
+        self.assertEqual(format_source("+#-", debug_command="qdb"), "+\n#\n-\n")
+        self.assertEqual(
+            format_source("+/* + [ hidden ] */-", comment_style="block"),
+            "+  /* + [ hidden ] */\n-\n",
+        )
+        self.assertEqual(
+            format_source("[\n/* first\n second */\n+\n]", comment_style="block"),
+            "[\n /* first\n  second */\n +\n]\n",
+        )
+        self.assertEqual(
+            format_source("+/* first\n second */-", comment_style="block"),
+            "+  /* first\n    second */\n-\n",
+        )
+        with self.assertRaises(SyntaxError):
+            format_source("[+")
+        with self.assertRaises(SyntaxError):
+            format_source("/* unclosed", comment_style="block")
+
+    def test_formatter_command_line_output_and_in_place(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source_file = Path(directory) / "source.b"
+            output_file = Path(directory) / "formatted.b"
+            source_file.write_text("[[+]]", encoding="utf-8")
+            self.assertEqual(formatter_main([str(source_file), "-o", str(output_file)]), 0)
+            self.assertEqual(output_file.read_text(encoding="utf-8"), "[\n [\n  +\n ]\n]\n")
+            self.assertEqual(formatter_main([str(source_file), "--in-place"]), 0)
+            self.assertEqual(source_file.read_text(encoding="utf-8"), "[\n [\n  +\n ]\n]\n")
     @staticmethod
     def _reference_standard(sourcecode: str) -> str:
         """Unoptimized 8-bit reference machine used only for differential tests."""
