@@ -11,6 +11,7 @@ def compile_to_python(
     tape_max: int | str | None = None, pointer_bounds: str | None = None,
     eof_mode: str | None = None, output_mode: str | None = None, max_steps: int | None = None,
     comment_style: str | None = None, debug_command: str | None = None,
+    debug_number_format: str | None = None,
     optimize: bool = True, optimization_level: int | None = None,
 ) -> str:
     """Return a self-contained Python script with resolved configuration and IR.
@@ -20,7 +21,7 @@ def compile_to_python(
     """
     config, level = runtime._configuration(
         mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode,
-        comment_style, debug_command, max_steps, optimize, optimization_level,
+        comment_style, debug_command, debug_number_format, max_steps, optimize, optimization_level,
     )
     operations = runtime._compile(
         sourcecode,
@@ -45,6 +46,7 @@ EOF_MODE = {config.eof_mode!r}
 OUTPUT_MODE = {config.output_mode!r}
 COMMENT_STYLE = {config.comment_style!r}
 DEBUG_COMMAND = {config.debug_command!r}
+DEBUG_NUMBER_FORMAT = {config.debug_number_format!r}
 MAX_STEPS = {max_steps!r}
 OPTIMIZATION_LEVEL = {level!r}
 OPERATIONS = {serialized!r}
@@ -77,7 +79,7 @@ while instruction < len(OPERATIONS):
     elif operation == "clear":
         tape.pop(pointer, None)
     elif operation == "debug":
-        cells = "".join(f"{{value if value < 128 else value - 256:4d}}" for value in (tape.get(index, 0) for index in range(64)))
+        cells = "".join(f"{{value if DEBUG_NUMBER_FORMAT == 'unsigned' or value < 128 else value - 256:4d}}" for value in (tape.get(index, 0) for index in range(64)))
         debug_output = f"\\n{{cells}}\\n{{' ' * max(0, pointer * 4 + 4)}}^\\n"
         output_stream.write(debug_output.encode("ascii") if OUTPUT_MODE == "byte" else debug_output)
     elif operation == "output":

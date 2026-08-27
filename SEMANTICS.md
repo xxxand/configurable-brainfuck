@@ -21,8 +21,8 @@
 
 | Parameter | Values | Rule |
 |---|---|---|
-| `cell_mode` | `unbounded`, `wrap` | `unbounded` 使用 Python `int`；`wrap` 使用无符号模算术。 |
-| `cell_bits` | positive integer, `unbounded`, `None` | `wrap` 的范围为 `0..2**bits-1`。 |
+| `cell_mode` | `unbounded`, `wrap` | `unbounded` 使用 Python `int`；`wrap` 使用模 `2**cell_bits` 的固定宽度位模式。 |
+| `cell_bits` | positive integer, `unbounded`, `None` | `wrap` 的位模式集合为 `0..2**bits-1`。 |
 | `tape_min` | integer, `unbounded`, `None` | 指针允许的最小位置。 |
 | `tape_max` | integer, `unbounded`, `None` | 指针允许的最大位置。 |
 | `pointer_bounds` | `error`, `wrap` | 越过有限 Tape 边界时抛错或绕回另一端。 |
@@ -30,12 +30,17 @@
 | `output_mode` | `unicode`, `byte` | `.` 的文本编码语义。 |
 | `comment_style` | `none`, `block` | 是否预处理非嵌套的 `/* ... */` 块。 |
 | `debug_command` | `none`, `qdb` | 是否把 `#` 作为 qdb 调试指令。 |
+| `debug_number_format` | `signed`, `unsigned` | qdb `#` 的数字展示格式，不影响 BF 执行。 |
 | `max_steps` | non-negative integer, `None` | 原始执行 BF 指令数的上限。 |
 | `optimize` | `True`, `False` | 是否合并不影响语义的连续操作。 |
 
 初始指针固定为 `0`，因此配置范围必须包含 `0`。`tape_min > tape_max`、不包含 `0` 的范围和冲突的 Cell 参数会引发 `ValueError`。
 
 `pointer_bounds="wrap"` 仅可用于同时设置有限 `tape_min` 与 `tape_max` 的 Tape。半无限或双向无限 Tape 没有可绕回的另一端，会引发 `ValueError`。默认值 `error` 保持所有模式原有的越界报错行为。
+
+## Cell、I/O 与调试展示
+
+Cell 语义、I/O 表示与调试展示相互独立。固定宽度 Cell 是模 `2^N` 的位模式；signed/unsigned 不是 Cell 执行模式。`output_mode="byte"` 对 `.` 输出 `value & 0xFF`，但不会截断或修改 Cell，例如无限制 Cell 值 `1000` 会输出 byte 值 `232`，Cell 仍为 `1000`。qdb `#` 的 `debug_number_format` 只决定同一 8-bit 位模式显示为 signed 或 unsigned 数字，不影响 `+`、`-`、循环判断或输出。
 
 ## Instruction Matrix
 
@@ -50,7 +55,7 @@
 | `[` | 当前 Cell 为 `0` 时跳过匹配 `]` | 相同 | 括号必须匹配。 |
 | `]` | 当前 Cell 非 `0` 时跳回匹配 `[` 后 | 相同 | 括号必须匹配。 |
 
-默认所有非 BF 指令字符会被忽略，包含 `#`。`comment_style="block"` 会先把非嵌套 `/* ... */` 块替换为等长空白，保留原始位置；未闭合块会引发 `SyntaxError`。`debug_command="qdb"` 使 `#` 成为第九条扩展指令，要求 8-bit 回绕 Cell，并按 qdb 格式向程序输出一个空行、索引 `0..63` 的 signed-byte Cell 视图和指针 `^`。原始 qdb 对负指针没有定义；本项目在此情况下将 `^` 固定在左边界。两项扩展默认关闭。
+默认所有非 BF 指令字符会被忽略，包含 `#`。`comment_style="block"` 会先把非嵌套 `/* ... */` 块替换为等长空白，保留原始位置；未闭合块会引发 `SyntaxError`。`debug_command="qdb"` 使 `#` 成为第九条扩展指令，要求 8-bit 回绕 Cell，并按 qdb 格式向程序输出一个空行、索引 `0..63` 的 Cell 视图和指针 `^`。`debug_number_format` 选择 signed（默认）或 unsigned 展示。原始 qdb 对负指针没有定义；本项目在此情况下将 `^` 固定在左边界。两项扩展默认关闭。
 
 ## EOF Matrix
 

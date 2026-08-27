@@ -46,6 +46,7 @@ class _RuntimeConfig:
     output_mode: str
     comment_style: str
     debug_command: str
+    debug_number_format: str
 
 
 @dataclass(frozen=True)
@@ -59,10 +60,10 @@ class _Operation:
 
 
 PROFILES = {
-    "unlimited": _RuntimeConfig(UNBOUNDED, None, None, None, "error", "zero", "unicode", "none", "none"),
-    "standard": _RuntimeConfig("wrap", 8, None, None, "error", "zero", "byte", "none", "none"),
-    "standard-one-way": _RuntimeConfig("wrap", 8, 0, None, "error", "zero", "byte", "none", "none"),
-    "strict": _RuntimeConfig("wrap", 8, 0, 29999, "error", "zero", "byte", "none", "none"),
+    "unlimited": _RuntimeConfig(UNBOUNDED, None, None, None, "error", "zero", "unicode", "none", "none", "signed"),
+    "standard": _RuntimeConfig("wrap", 8, None, None, "error", "zero", "byte", "none", "none", "signed"),
+    "standard-one-way": _RuntimeConfig("wrap", 8, 0, None, "error", "zero", "byte", "none", "none", "signed"),
+    "strict": _RuntimeConfig("wrap", 8, 0, 29999, "error", "zero", "byte", "none", "none", "signed"),
 }
 
 
@@ -203,7 +204,7 @@ def _resolve_config(
     mode: str, cell_mode: str | None, cell_bits: int | str | None,
     tape_min: int | str | None, tape_max: int | str | None,
     pointer_bounds: str | None, eof_mode: str | None, output_mode: str | None,
-    comment_style: str | None, debug_command: str | None,
+    comment_style: str | None, debug_command: str | None, debug_number_format: str | None,
 ) -> _RuntimeConfig:
     if mode not in PROFILES:
         raise ValueError(f"mode must be one of: {', '.join(PROFILES)}")
@@ -255,9 +256,12 @@ def _resolve_config(
         raise ValueError("debug_command must be 'none' or 'qdb'")
     if resolved_debug_command == "qdb" and (resolved_cell_mode != "wrap" or resolved_cell_bits != 8):
         raise ValueError("debug_command='qdb' requires 8-bit wrapping Cells")
+    resolved_debug_number_format = profile.debug_number_format if debug_number_format is None else debug_number_format
+    if resolved_debug_number_format not in ("signed", "unsigned"):
+        raise ValueError("debug_number_format must be 'signed' or 'unsigned'")
     return _RuntimeConfig(resolved_cell_mode, resolved_cell_bits, resolved_tape_min, resolved_tape_max,
                           resolved_pointer_bounds, resolved_eof_mode, resolved_output_mode,
-                          resolved_comment_style, resolved_debug_command)
+                          resolved_comment_style, resolved_debug_command, resolved_debug_number_format)
 
 
 def _store_cell(tape: dict[int, int], pointer: int, value: int, config: _RuntimeConfig) -> None:
@@ -270,13 +274,16 @@ def _store_cell(tape: dict[int, int], pointer: int, value: int, config: _Runtime
         tape.pop(pointer, None)
 
 
-def _qdb_debug_output(tape: dict[int, int], pointer: int) -> str:
-    """Render qdb's 64 signed-byte Cell view and its pointer marker.
+def _qdb_debug_output(tape: dict[int, int], pointer: int, number_format: str) -> str:
+    """Render qdb's 64 Cell view with a signed or unsigned number display.
 
     qdb leaves negative pointers undefined. This implementation anchors their
     marker at the left margin so the optional debugger remains printable.
     """
-    cells = "".join(f"{value if value < 128 else value - 256:4d}" for value in (tape.get(index, 0) for index in range(64)))
+    def display(value: int) -> int:
+        return value if number_format == "unsigned" or value < 128 else value - 256
+
+    cells = "".join(f"{display(tape.get(index, 0)):4d}" for index in range(64))
     return f"\n{cells}\n{' ' * max(0, pointer * 4 + 4)}^\n"
 
 
@@ -328,7 +335,7 @@ def _resolve_optimization_level(optimize: bool, optimization_level: int | None) 
 def _configuration(
     mode: str, cell_mode: str | None, cell_bits: int | str | None, tape_min: int | str | None,
     tape_max: int | str | None, pointer_bounds: str | None, eof_mode: str | None, output_mode: str | None,
-    comment_style: str | None, debug_command: str | None,
+    comment_style: str | None, debug_command: str | None, debug_number_format: str | None,
     max_steps: int | None, optimize: bool, optimization_level: int | None,
 ) -> tuple[_RuntimeConfig, int]:
     """Resolve a profile plus overrides before compilation or execution.
@@ -338,7 +345,7 @@ def _configuration(
     """
     if max_steps is not None and (isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 0):
         raise ValueError("max_steps must be a non-negative integer or None")
-    return (_resolve_config(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command),
+    return (_resolve_config(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command, debug_number_format),
             _resolve_optimization_level(optimize, optimization_level))
 
 
@@ -419,7 +426,7 @@ def _execute(
             elif config.eof_mode == "error":
                 raise EOFInputError(f"input exhausted at {location}")
         elif operation.kind == "debug":
-            debug_output = _qdb_debug_output(tape, pointer)
+            debug_output = _qdb_debug_output(tape, pointer, config.debug_number_format)
             if config.output_mode == "byte":
                 output_bytes.extend(debug_output.encode("ascii"))
             else:
@@ -442,7 +449,7 @@ def interpret(
     mode: str = "unlimited", cell_mode: str | None = None, cell_bits: int | str | None = None,
     tape_min: int | str | None = None, tape_max: int | str | None = None,
     pointer_bounds: str | None = None, eof_mode: str | None = None, output_mode: str | None = None,
-    comment_style: str | None = None, debug_command: str | None = None,
+    comment_style: str | None = None, debug_command: str | None = None, debug_number_format: str | None = None,
     max_steps: int | None = None, optimize: bool = True, optimization_level: int | None = None,
     trace: Callable[[dict[str, object]], None] | None = None, profile: dict[str, object] | None = None,
 ) -> str:
@@ -452,7 +459,7 @@ def interpret(
     modes accept ASCII text input only; use :func:`interpret_bytes` for raw
     byte input. Remaining keyword arguments select runtime semantics.
     """
-    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command, max_steps, optimize, optimization_level)
+    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command, debug_number_format, max_steps, optimize, optimization_level)
     if not isinstance(input_data, str):
         raise TypeError("input_data must be str; use interpret_bytes for byte input")
     if config.output_mode == "byte" and any(ord(character) > 127 for character in input_data):
@@ -466,7 +473,7 @@ def interpret_bytes(
     mode: str = "strict", cell_mode: str | None = None, cell_bits: int | str | None = None,
     tape_min: int | str | None = None, tape_max: int | str | None = None,
     pointer_bounds: str | None = None, eof_mode: str | None = None, output_mode: str | None = None,
-    comment_style: str | None = None, debug_command: str | None = None,
+    comment_style: str | None = None, debug_command: str | None = None, debug_number_format: str | None = None,
     max_steps: int | None = None, optimize: bool = True, optimization_level: int | None = None,
     trace: Callable[[dict[str, object]], None] | None = None, profile: dict[str, object] | None = None,
 ) -> bytes:
@@ -475,7 +482,7 @@ def interpret_bytes(
     The default ``strict`` profile uses canonical 8-bit Cell semantics. This
     API deliberately rejects Unicode text input and non-byte output modes.
     """
-    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command, max_steps, optimize, optimization_level)
+    config, level = _configuration(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command, debug_number_format, max_steps, optimize, optimization_level)
     if config.output_mode != "byte":
         raise ValueError("interpret_bytes requires output_mode='byte'")
     if not isinstance(input_data, bytes):

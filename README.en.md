@@ -7,11 +7,19 @@ A configurable Brainfuck (BF) interpreter implemented with the Python standard l
 ## Features
 
 - The default Tape is a sparse dictionary indexed by signed integers. The pointer can move indefinitely in either direction, and unused Cells read as `0`.
-- The default Cell type is Python `int`, so `+` and `-` do not truncate values. Cells can instead use unsigned wrapping arithmetic at any configured bit width.
+- The default Cell type is Python `int`, so `+` and `-` do not truncate values. Cells can instead use fixed-width bit patterns with modulo `2^N` arithmetic at any configured width.
 - Supports the complete BF instruction set: `>`, `<`, `+`, `-`, `.`, `,`, `[`, and `]`.
 - Bracket pairs are validated before execution. An unmatched `[` or `]` raises `SyntaxError`.
 - Consecutive pointer moves and Cell changes are combined to reduce interpretation overhead. Necessary source-level execution is preserved when a step limit or Tape boundary is enabled.
 - There are no artificial Tape, Cell, or pointer limits beyond available memory, execution time, and Python integer resources.
+
+## Cell, I/O, And Debug Views
+
+Fixed-width Cells are bit patterns modulo `2^N`; there is no signed/unsigned Cell mode that affects BF execution. `+`, `-`, `[`, and `]` operate only on the bit pattern and whether it is `0`.
+
+`output_mode` controls only how `.` represents the current Cell and never changes that Cell: `unicode` outputs the value as a Unicode code point, while `byte` outputs `value & 0xFF`. An unbounded Cell with value `1000` therefore produces byte `232` in byte-output mode while the Cell remains `1000`.
+
+The qdb `#` debugger can display an 8-bit pattern as a `signed` number (the default) or an `unsigned` number, such as `-24` or `232` for the same pattern. This is a display option and does not affect BF execution, loop tests, or `.` output.
 
 ## Requirements
 
@@ -142,7 +150,7 @@ python brainfuck.py -m strict --comment-style block --debug-command qdb code.b
 ```
 
 - `comment_style="block"` removes non-nested `/* ... */` blocks, so BF instructions inside them do not execute. An unclosed block reports its original source location.
-- `debug_command="qdb"` recognizes `#` as Daniel B. Cristofani's `qdb.c` debugging instruction: it outputs a signed 8-bit view of the first 64 Cells and a pointer `^`. This extension requires 8-bit wrapping Cells and writes to BF program standard output.
+- `debug_command="qdb"` recognizes `#` as Daniel B. Cristofani's `qdb.c` debugging instruction: it outputs the first 64 Cells and a pointer `^`. This extension requires 8-bit wrapping Cells and writes to BF program standard output. `debug_number_format="signed"` (default) or `"unsigned"` changes only the displayed numbers.
 
 ## Compile To Python
 

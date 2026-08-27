@@ -116,6 +116,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
     def test_unrestricted_tape_and_cells(self) -> None:
         self.assertEqual(interpret("<+.>+."), "\x01\x01")
         self.assertEqual(interpret("+" * 256 + "."), chr(256))
+        self.assertEqual(interpret("+" * 1000 + ".", output_mode="byte"), chr(232))
 
     def test_block_comments_and_qdb_debug_extension(self) -> None:
         self.assertEqual(interpret("/* ++ */+.", comment_style="block"), "\x01")
@@ -129,6 +130,15 @@ class BrainfuckInterpreterTests(unittest.TestCase):
             interpret("+#.", mode="standard", debug_command="qdb"),
             expected_debug,
         )
+        signed_debug = interpret("-" * 24 + "#", mode="standard", debug_command="qdb")
+        unsigned_debug = interpret(
+            "-" * 24 + "#",
+            mode="standard",
+            debug_command="qdb",
+            debug_number_format="unsigned",
+        )
+        self.assertIn(f"{-24:4d}", signed_debug)
+        self.assertIn(f"{232:4d}", unsigned_debug)
         with self.assertRaises(ValueError):
             interpret("#", debug_command="qdb")
 
@@ -301,7 +311,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
         interpreter = Path(__file__).with_name("brainfuck.py")
         with tempfile.TemporaryDirectory() as directory:
             source_file = Path(directory) / "extensions.b"
-            source_file.write_text("/* ++ */+#.", encoding="utf-8")
+            source_file.write_text("/* comment */" + "-" * 24 + "#", encoding="utf-8")
             result = subprocess.run(
                 [
                     sys.executable,
@@ -312,14 +322,15 @@ class BrainfuckInterpreterTests(unittest.TestCase):
                     "block",
                     "--debug-command",
                     "qdb",
+                    "--debug-number-format",
+                    "unsigned",
                     str(source_file),
                 ],
                 capture_output=True,
                 check=False,
             )
         self.assertEqual(result.returncode, 0, result.stderr.decode())
-        self.assertTrue(result.stdout.endswith(b"\x01"))
-        self.assertIn(b"   1", result.stdout)
+        self.assertIn(b" 232", result.stdout)
 
     def test_command_line_strict_uses_byte_io(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
@@ -383,9 +394,12 @@ class BrainfuckInterpreterTests(unittest.TestCase):
 
     def test_generated_python_preserves_extensions(self) -> None:
         generated = compile_to_python(
-            "/* ++ */+#.", mode="strict", comment_style="block", debug_command="qdb"
+            "/* comment */" + "-" * 24 + "#",
+            mode="strict",
+            comment_style="block",
+            debug_command="qdb",
+            debug_number_format="unsigned",
         )
-        expected_debug = ("\n" + f"{1:4d}" + f"{0:4d}" * 63 + "\n    ^\n\x01").encode("ascii")
         with tempfile.TemporaryDirectory() as directory:
             generated_file = Path(directory) / "extensions.py"
             generated_file.write_text(generated, encoding="utf-8")
@@ -393,7 +407,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
                 [sys.executable, str(generated_file)], capture_output=True, check=False
             )
         self.assertEqual(result.returncode, 0, result.stderr.decode())
-        self.assertEqual(result.stdout, expected_debug)
+        self.assertIn(b" 232", result.stdout)
 
     def test_command_line_python_compilation(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")

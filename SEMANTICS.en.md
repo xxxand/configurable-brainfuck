@@ -21,8 +21,8 @@ When `cell_mode="wrap"` is explicitly selected without an inheritable `cell_bits
 
 | Parameter | Values | Rule |
 |---|---|---|
-| `cell_mode` | `unbounded`, `wrap` | `unbounded` uses Python `int`; `wrap` uses unsigned modular arithmetic. |
-| `cell_bits` | positive integer, `unbounded`, `None` | The `wrap` range is `0..2**bits-1`. |
+| `cell_mode` | `unbounded`, `wrap` | `unbounded` uses Python `int`; `wrap` uses fixed-width bit patterns modulo `2**cell_bits`. |
+| `cell_bits` | positive integer, `unbounded`, `None` | The `wrap` bit-pattern set is `0..2**bits-1`. |
 | `tape_min` | integer, `unbounded`, `None` | Minimum allowed pointer position. |
 | `tape_max` | integer, `unbounded`, `None` | Maximum allowed pointer position. |
 | `pointer_bounds` | `error`, `wrap` | Raise at a finite Tape boundary or wrap to the opposite end. |
@@ -30,12 +30,17 @@ When `cell_mode="wrap"` is explicitly selected without an inheritable `cell_bits
 | `output_mode` | `unicode`, `byte` | Text encoding semantics of `.`. |
 | `comment_style` | `none`, `block` | Whether to preprocess non-nested `/* ... */` blocks. |
 | `debug_command` | `none`, `qdb` | Whether `#` is a qdb debugging instruction. |
+| `debug_number_format` | `signed`, `unsigned` | qdb `#` number display format; it does not affect BF execution. |
 | `max_steps` | non-negative integer, `None` | Limit on executed original BF instructions. |
 | `optimize` | `True`, `False` | Whether to combine consecutive operations without changing semantics. |
 
 The initial pointer is always `0`, so configured ranges must include `0`. A `tape_min` greater than `tape_max`, a range excluding `0`, or conflicting Cell parameters raises `ValueError`.
 
 `pointer_bounds="wrap"` is valid only when both `tape_min` and `tape_max` are finite. A half-unbounded or bidirectionally unbounded Tape has no opposite end to wrap to and raises `ValueError`. The default, `error`, preserves the existing out-of-bounds error behavior for every mode.
+
+## Cell, I/O, And Debug Views
+
+Cell semantics, I/O representation, and debugger display are independent. Fixed-width Cells are bit patterns modulo `2^N`; signed/unsigned is not a Cell execution mode. `output_mode="byte"` writes `value & 0xFF` for `.`, but never truncates or modifies the Cell: an unbounded Cell value of `1000` outputs byte value `232` while the Cell remains `1000`. qdb `#` `debug_number_format` only selects a signed or unsigned display of the same 8-bit pattern; it does not affect `+`, `-`, loop tests, or output.
 
 ## Instruction Matrix
 
@@ -50,7 +55,7 @@ The initial pointer is always `0`, so configured ranges must include `0`. A `tap
 | `[` | Skips the matching `]` when the current Cell is `0` | Same | Brackets must match. |
 | `]` | Jumps to after the matching `[` when the current Cell is nonzero | Same | Brackets must match. |
 
-By default, all non-BF characters, including `#`, are ignored. `comment_style="block"` first replaces non-nested `/* ... */` blocks with equal-length whitespace while retaining source locations; an unclosed block raises `SyntaxError`. `debug_command="qdb"` makes `#` a ninth extension instruction, requires 8-bit wrapping Cells, and writes qdb's blank line, signed-byte Cell view for indexes `0..63`, and pointer `^` to program output. Original qdb leaves negative pointers undefined; this project anchors `^` at the left margin in that case. Both extensions are disabled by default.
+By default, all non-BF characters, including `#`, are ignored. `comment_style="block"` first replaces non-nested `/* ... */` blocks with equal-length whitespace while retaining source locations; an unclosed block raises `SyntaxError`. `debug_command="qdb"` makes `#` a ninth extension instruction, requires 8-bit wrapping Cells, and writes qdb's blank line, Cell view for indexes `0..63`, and pointer `^` to program output. `debug_number_format` selects signed (default) or unsigned display. Original qdb leaves negative pointers undefined; this project anchors `^` at the left margin in that case. Both extensions are disabled by default.
 
 ## EOF Matrix
 

@@ -96,6 +96,7 @@ def main(argv: list[str] | None = None, stdin: object | None = None) -> int:
     parser.add_argument("-o", "--output-mode", choices=("unicode", "byte"))
     parser.add_argument("--comment-style", choices=("none", "block"))
     parser.add_argument("--debug-command", choices=("none", "qdb"))
+    parser.add_argument("--debug-number-format", choices=("signed", "unsigned"))
     parser.add_argument("-s", "--max-steps", type=_parse_non_negative_integer)
     parser.add_argument("-O", "--no-optimize", action="store_true")
     parser.add_argument("--optimization-level", type=int, choices=(0, 1, 2))
@@ -109,15 +110,16 @@ def main(argv: list[str] | None = None, stdin: object | None = None) -> int:
     config, level = runtime._configuration(
         arguments.mode, arguments.cell_mode, arguments.cell_bits, arguments.tape_min, arguments.tape_max,
         arguments.pointer_bounds, arguments.eof_mode, arguments.output_mode,
-        arguments.comment_style, arguments.debug_command, arguments.max_steps,
+        arguments.comment_style, arguments.debug_command, arguments.debug_number_format, arguments.max_steps,
         not arguments.no_optimize, arguments.optimization_level,
     )
     sourcecode = Path(arguments.source_file).read_text(encoding="utf-8")
     options = dict(mode=arguments.mode, cell_mode=arguments.cell_mode, cell_bits=arguments.cell_bits,
                    tape_min=arguments.tape_min, tape_max=arguments.tape_max,
                    pointer_bounds=arguments.pointer_bounds, eof_mode=arguments.eof_mode,
-                   output_mode=arguments.output_mode, comment_style=arguments.comment_style,
-                   debug_command=arguments.debug_command, max_steps=arguments.max_steps,
+                    output_mode=arguments.output_mode, comment_style=arguments.comment_style,
+                   debug_command=arguments.debug_command, debug_number_format=arguments.debug_number_format,
+                   max_steps=arguments.max_steps,
                    optimize=not arguments.no_optimize, optimization_level=level)
     if compiling:
         generated = compile_to_python(sourcecode, **options)

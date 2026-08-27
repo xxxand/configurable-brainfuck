@@ -7,11 +7,19 @@
 ## 特性
 
 - 默认 Tape 使用稀疏字典，以带符号整数作为位置索引。指针可无限向左或向右移动，未使用的 Cell 读取为 `0`。
-- 默认 Cell 使用 Python `int`，`+` 和 `-` 不进行范围截断；可配置为任意位宽的无符号回绕 Cell。
+- 默认 Cell 使用 Python `int`，`+` 和 `-` 不进行范围截断；也可配置为任意位宽、按模 `2^N` 回绕的固定宽度 Cell。
 - 支持完整 BF 指令集：`>`、`<`、`+`、`-`、`.`、`,`、`[`、`]`。
 - 在执行前检查括号匹配；多余 `[` 或 `]` 会引发 `SyntaxError`。
 - 连续的指针移动和 Cell 增减会合并执行，减少解释开销；启用步数限制或 Tape 边界时会保留必要的逐指令执行。
 - 除实际内存、运行时间和 Python 整数可用资源外，不设置 Tape、Cell 或指针的人为上限。
+
+## Cell、I/O 与调试展示
+
+固定宽度 Cell 是模 `2^N` 的位模式，不存在影响 BF 执行的 signed/unsigned Cell 模式。`+`、`-`、`[`、`]` 只处理位模式及其是否为 `0`。
+
+`output_mode` 只决定 `.` 如何表示当前 Cell，不会改变 Cell：`unicode` 将值作为 Unicode 码点输出；`byte` 输出 `value & 0xFF`。因此无限制 Cell 的值即使是 `1000`，byte 输出仍是 `232`，而 Cell 本身仍为 `1000`。
+
+qdb `#` 调试器可将 8-bit 位模式显示为 `signed`（默认）或 `unsigned` 数字，例如同一位模式可显示为 `-24` 或 `232`。这是展示选项，不影响 BF 执行、循环判断或 `.` 的输出。
 
 ## 环境
 
@@ -142,7 +150,7 @@ python brainfuck.py -m strict --comment-style block --debug-command qdb code.b
 ```
 
 - `comment_style="block"` 移除非嵌套的 `/* ... */` 块，块内的 BF 指令不会执行。未闭合块会报出原始行列位置。
-- `debug_command="qdb"` 将 `#` 识别为 Daniel B. Cristofani `qdb.c` 调试指令：输出前 64 个 Cell 的 signed 8-bit 视图及指针 `^`。该扩展要求 8-bit 回绕 Cell，并写到 BF 程序的标准输出。
+- `debug_command="qdb"` 将 `#` 识别为 Daniel B. Cristofani `qdb.c` 调试指令：输出前 64 个 Cell 与指针 `^`。该扩展要求 8-bit 回绕 Cell，并写到 BF 程序的标准输出。`debug_number_format="signed"`（默认）或 `"unsigned"` 只改变数值展示。
 
 ## 编译为 Python
 
