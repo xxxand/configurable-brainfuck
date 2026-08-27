@@ -165,3 +165,8 @@ python -m unittest -v
 ```
 
 The test suite covers imports, command-line execution, lazy CLI input, standard modes, bidirectional and bounded Tape configurations, bit-width wrapping, EOF, loops, input, bracket errors, and step limits. Fixed-seed randomized differential tests compare O0/O1/O2 with an independent raw 8-bit reference machine; `tests/external/` also contains an attributed Brainfuck.org regression sample.
+
+## References
+
+- [Brainfuck.org](https://brainfuck.org/)
+- [Wikipedia: Brainfuck](https://en.wikipedia.org/wiki/Brainfuck)

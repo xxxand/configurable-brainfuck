@@ -165,3 +165,8 @@ python -m unittest -v
 ```
 
 测试覆盖导入调用、命令行执行、CLI 惰性输入、标准模式、双向和受限 Tape、位宽回绕、EOF、循环、输入、括号错误和步数限制。固定种子的随机差分测试将 O0/O1/O2 与独立逐条 8-bit 参考机比较；`tests/external/` 还包含带来源说明的 Brainfuck.org 回归样本。
+
+## 参考资料
+
+- [Brainfuck.org](https://brainfuck.org/)
+- [Wikipedia: Brainfuck](https://en.wikipedia.org/wiki/Brainfuck)
