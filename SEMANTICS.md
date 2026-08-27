@@ -69,7 +69,7 @@
 
 `--optimization-level 0` 逐条执行原始 BF 指令。级别 `1`（默认）会合并连续的 `+` / `-`，并在没有 Tape 边界、步数限制、trace 或 profile 时合并连续 `>` / `<`。级别 `2` 仅在固定宽度 `wrap` Cell、没有步数限制、trace 或 profile 时，将恰好匹配 `[-]` 或 `[+]` 的循环折叠为清零；无限整数 Cell 下不使用该优化，因为负数值可能不终止。
 
-`compile_to_python()` 和 `--compile-python [OUTPUT] code.bf` 生成独立 Python 脚本。未指定 `OUTPUT` 时脚本写到标准输出，指定后写入目标路径。生成脚本嵌入已解析的配置，使用逐原始 BF 指令执行，以保持 Cell、Tape、EOF、字节 I/O 和步数限制语义。
+`compile_to_python()` 和 `--compile-python [OUTPUT] code.bf` 生成独立 Python 脚本。未指定 `OUTPUT` 时脚本写到标准输出，指定后写入目标路径。生成脚本嵌入已解析的配置及 `OPERATIONS` IR：O0 为逐原始指令，O1 合并连续操作并保留其原始步数，O2 在符合条件时加入 `clear` 操作。启用 `max_steps` 或有限 Tape 时，生成器禁用会影响精确步数或中间边界检查的合并。
 
 ## Step Matrix
 

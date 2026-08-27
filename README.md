@@ -117,7 +117,7 @@ python brainfuck.py --profile --dump-ir code.bf
 
 ## 编译为 Python
 
-`compile_to_python(sourcecode, ...)` 返回独立、仅依赖 Python 标准库的 Python 程序文本。生成脚本嵌入 BF 源码和选定配置，并按原始 BF 指令执行，优先保证语义一致性。
+`compile_to_python(sourcecode, optimization_level=...)` 返回独立、仅依赖 Python 标准库的 Python 程序文本。生成脚本嵌入 BF 源码、选定配置和编译后的 `OPERATIONS` IR。O0 为每条原始指令生成一项，O1 合并连续操作并保留原始步数，O2 在安全条件下生成 `clear` 操作。
 
 命令行使用 `--compile-python [OUTPUT] code.bf`。省略 `OUTPUT` 时生成代码写到标准输出；提供目标时写入该文件：
 

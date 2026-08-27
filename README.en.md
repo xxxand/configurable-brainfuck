@@ -117,7 +117,7 @@ Standard-compatible modes (`standard`, `standard-one-way`, and `strict`) use raw
 
 ## Compile To Python
 
-`compile_to_python(sourcecode, ...)` returns standalone Python program text that depends only on the Python standard library. The generated script embeds the BF source and selected configuration, and executes original BF instructions to prioritize semantic consistency.
+`compile_to_python(sourcecode, optimization_level=...)` returns standalone Python program text that depends only on the Python standard library. Generated scripts embed BF source, the selected configuration, and compiled `OPERATIONS` IR. O0 emits one operation per original instruction, O1 combines consecutive operations while retaining original step counts, and O2 emits `clear` operations when safe.
 
 Use `--compile-python [OUTPUT] code.bf` on the command line. With no `OUTPUT`, generated code goes to standard output; with an output path, it is written to that file:
 

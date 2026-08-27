@@ -69,7 +69,7 @@ With trace or profiling enabled, pointer moves and Cell changes are not combined
 
 `--optimization-level 0` executes original BF instructions one at a time. Level `1` (the default) combines consecutive `+` / `-`, and combines consecutive `>` / `<` when there are no Tape bounds, step limit, trace, or profile. Level `2` folds loops exactly matching `[-]` or `[+]` into a clear operation only with fixed-width `wrap` Cells and no step limit, trace, or profile. This optimization is not used for unbounded integer Cells because negative values may not terminate.
 
-`compile_to_python()` and `--compile-python [OUTPUT] code.bf` generate a standalone Python script. Without `OUTPUT`, the script is written to standard output; otherwise it is written to the target path. Generated scripts embed the resolved configuration and execute original BF instructions to preserve Cell, Tape, EOF, byte I/O, and step-limit semantics.
+`compile_to_python()` and `--compile-python [OUTPUT] code.bf` generate a standalone Python script. Without `OUTPUT`, the script is written to standard output; otherwise it is written to the target path. Generated scripts embed the resolved configuration and `OPERATIONS` IR: O0 has one operation per original instruction, O1 combines consecutive operations while preserving their original step count, and O2 adds `clear` operations when eligible. With `max_steps` or bounded Tape, the generator disables combinations that would affect exact step counting or intermediate bounds checks.
 
 ## Step Matrix
 
