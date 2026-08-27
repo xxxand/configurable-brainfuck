@@ -84,7 +84,7 @@ def main(argv: list[str] | None = None, stdin: object | None = None) -> int:
     except ValueError as error:
         print(f"brainfuck.py: error: {error}", file=sys.stderr)
         return 2
-    parser = argparse.ArgumentParser(description="A configurable Brainfuck interpreter with unrestricted defaults.")
+    parser = argparse.ArgumentParser(description="A configurable Brainfuck interpreter.")
     parser.add_argument("source_file", metavar="code.b")
     parser.add_argument("-m", "--mode", choices=runtime.PROFILES, default="unlimited")
     parser.add_argument("--cell-mode", choices=(runtime.UNBOUNDED, "wrap"))
