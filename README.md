@@ -59,10 +59,10 @@ Hello World!
 当 BF 程序执行到 `,` 时，解释器才从标准输入读取一个字符。没有 `,` 的程序不会等待标准输入。例如：
 
 ```powershell
-python brainfuck.py input.bf
+python brainfuck.py input.b
 ```
 
-若 `input.bf` 内容为 `,.`，输入一个字符并按 Enter 后，程序会输出该字符。输入结束后继续执行 `,` 时会向当前 Cell 写入 `0`。
+若 `input.b` 内容为 `,.`，输入一个字符并按 Enter 后，程序会输出该字符。输入结束后继续执行 `,` 时会向当前 Cell 写入 `0`。
 
 ## 作为模块导入
 

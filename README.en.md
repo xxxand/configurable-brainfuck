@@ -59,10 +59,10 @@ Hello World!
 The interpreter reads one standard-input character only when the BF program executes `,`. Programs without `,` do not wait for input. For example:
 
 ```powershell
-python brainfuck.py input.bf
+python brainfuck.py input.b
 ```
 
-If `input.bf` contains `,.`, enter one character and press Enter; the program outputs that character. If input is exhausted and a later `,` executes, the default behavior writes `0` to the current Cell.
+If `input.b` contains `,.`, enter one character and press Enter; the program outputs that character. If input is exhausted and a later `,` executes, the default behavior writes `0` to the current Cell.
 
 ## Import As A Module
 

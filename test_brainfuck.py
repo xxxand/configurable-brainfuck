@@ -216,7 +216,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
     def test_command_line_consumes_input_at_comma(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
         with tempfile.TemporaryDirectory() as directory:
-            source_file = Path(directory) / "input.bf"
+            source_file = Path(directory) / "input.b"
             source_file.write_text(",.", encoding="utf-8")
             result = subprocess.run(
                 [sys.executable, str(interpreter), str(source_file)],

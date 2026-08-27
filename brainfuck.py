@@ -72,7 +72,11 @@ def _location(sourcecode: str, offset: int) -> str:
 
 
 def _filter_program(sourcecode: str, comment_style: str, debug_command: str) -> tuple[str, list[int]]:
-    """Apply extensions, then keep commands and original offsets for diagnostics."""
+    """Apply source extensions while preserving offsets for later diagnostics.
+
+    Block-comment characters become spaces instead of being deleted so an IR
+    operation can still report its line and column in the original source.
+    """
     filtered_source = sourcecode
     if comment_style == "block":
         characters = list(sourcecode)
@@ -122,7 +126,11 @@ def _compile(
     sourcecode: str, optimize_moves: bool, optimize_additions: bool,
     comment_style: str = "none", debug_command: str = "none",
 ) -> list[_Operation]:
-    """Compile BF text to IR, combining only operations allowed by the caller."""
+    """Compile BF text to IR, merging only operations allowed by the caller.
+
+    Bracket targets are stored as compiled-operation indexes, while each
+    operation keeps its original source offset and source-level step count.
+    """
     program, offsets = _filter_program(sourcecode, comment_style, debug_command)
     jumps = _build_jumps(program, offsets, sourcecode)
     operations: list[_Operation] = []
@@ -316,6 +324,11 @@ def _configuration(
     comment_style: str | None, debug_command: str | None,
     max_steps: int | None, optimize: bool, optimization_level: int | None,
 ) -> tuple[_RuntimeConfig, int]:
+    """Resolve a profile plus overrides before compilation or execution.
+
+    Keeping validation here ensures the text API, byte API, CLI, and code
+    generator reject incompatible combinations in the same way.
+    """
     if max_steps is not None and (isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 0):
         raise ValueError("max_steps must be a non-negative integer or None")
     return (_resolve_config(mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode, comment_style, debug_command),
@@ -327,6 +340,11 @@ def _execute(
     config: _RuntimeConfig, max_steps: int | None, optimization_level: int,
     trace: Callable[[dict[str, object]], None] | None, profile: dict[str, object] | None,
 ) -> str | bytes:
+    """Run compiled IR and collect text or byte output for the selected mode.
+
+    Trace, profile, bounded Tape, and step-limit modes retain source-level
+    operations where combining them would hide an observable transition.
+    """
     observable = trace is not None or profile is not None
     operations = _compile(
         sourcecode,
@@ -452,14 +470,14 @@ def interpret_bytes(
 
 
 def compile_to_python(*args: object, **kwargs: object) -> str:
-    """Lazily import the generator so runtime users do not load CLI code."""
+    """Lazily import the optional standalone-Python generator on demand."""
     from bf_codegen import compile_to_python as compile_program
 
     return compile_program(*args, **kwargs)
 
 
 def main(argv: list[str] | None = None, stdin: object | None = None) -> int:
-    """Lazily import the CLI while preserving the historical entry point."""
+    """Delegate the historical ``brainfuck.py`` entry point to the CLI module."""
     from bf_cli import main as run_cli
 
     return run_cli(argv, stdin)

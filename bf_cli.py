@@ -41,6 +41,7 @@ def _parse_cell_bits(value: str) -> int | str:
 
 
 def _trace_writer(stream: TextIO, trace_format: str) -> Callable[[dict[str, object]], None]:
+    """Create the text or JSON Lines sink used by the runtime trace callback."""
     def write(event: dict[str, object]) -> None:
         if trace_format == "jsonl":
             stream.write(json.dumps(event, sort_keys=True) + "\n")
@@ -50,6 +51,7 @@ def _trace_writer(stream: TextIO, trace_format: str) -> Callable[[dict[str, obje
 
 
 def _dump_ir(sourcecode: str, config: runtime._RuntimeConfig, level: int, observable: bool, stream: TextIO) -> None:
+    """Show the same IR shape the execution path will use for this invocation."""
     operations = runtime._compile(
         sourcecode,
         level >= 1 and config.tape_min is None and config.tape_max is None and not observable,

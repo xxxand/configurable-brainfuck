@@ -13,7 +13,11 @@ def compile_to_python(
     comment_style: str | None = None, debug_command: str | None = None,
     optimize: bool = True, optimization_level: int | None = None,
 ) -> str:
-    """Return a self-contained Python script with compiled BF operations."""
+    """Return a self-contained Python script with resolved configuration and IR.
+
+    The generated script does not import this project. Its IR uses the same
+    O0/O1/O2 eligibility rules as the interpreter for this configuration.
+    """
     config, level = runtime._configuration(
         mode, cell_mode, cell_bits, tape_min, tape_max, pointer_bounds, eof_mode, output_mode,
         comment_style, debug_command, max_steps, optimize, optimization_level,
