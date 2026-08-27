@@ -158,7 +158,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
                     )
 
     def test_brainfuck_org_external_test_case(self) -> None:
-        source_file = Path(__file__).parent / "tests" / "external" / "brainfuck.org-obscure-problems.bf"
+        source_file = Path(__file__).parent / "tests" / "external" / "brainfuck.org-obscure-problems.b"
         self.assertEqual(interpret_bytes(source_file.read_text(encoding="utf-8"), mode="strict"), b"H\n")
 
     def test_semantic_matrix_output_cases(self) -> None:
@@ -275,7 +275,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
     def test_command_line_standard_mode(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
         with tempfile.TemporaryDirectory() as directory:
-            source_file = Path(directory) / "wrap.bf"
+            source_file = Path(directory) / "wrap.b"
             source_file.write_text("-[-].", encoding="utf-8")
             result = subprocess.run(
                 [sys.executable, str(interpreter), "--mode", "standard", str(source_file)],
@@ -289,7 +289,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
     def test_command_line_pointer_wrap(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
         with tempfile.TemporaryDirectory() as directory:
-            source_file = Path(directory) / "wrap-pointer.bf"
+            source_file = Path(directory) / "wrap-pointer.b"
             source_file.write_text("<+.", encoding="utf-8")
             result = subprocess.run(
                 [
@@ -335,7 +335,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
     def test_command_line_strict_uses_byte_io(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
         with tempfile.TemporaryDirectory() as directory:
-            source_file = Path(directory) / "byte-io.bf"
+            source_file = Path(directory) / "byte-io.b"
             source_file.write_text(",.", encoding="utf-8")
             result = subprocess.run(
                 [sys.executable, str(interpreter), "-m", "strict", str(source_file)],
@@ -412,7 +412,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
     def test_command_line_python_compilation(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
         with tempfile.TemporaryDirectory() as directory:
-            source_file = Path(directory) / "source.bf"
+            source_file = Path(directory) / "source.b"
             output_file = Path(directory) / "program.py"
             source_file.write_text("+.", encoding="utf-8")
             stdout_result = subprocess.run(
@@ -463,7 +463,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
 
         interpreter = Path(__file__).with_name("brainfuck.py")
         with tempfile.TemporaryDirectory() as directory:
-            source_file = Path(directory) / "trace.bf"
+            source_file = Path(directory) / "trace.b"
             source_file.write_text("++.", encoding="utf-8")
             result = subprocess.run(
                 [sys.executable, str(interpreter), "--trace", "--profile", "--dump-ir", str(source_file)],
@@ -481,7 +481,7 @@ class BrainfuckInterpreterTests(unittest.TestCase):
     def test_command_line_short_options(self) -> None:
         interpreter = Path(__file__).with_name("brainfuck.py")
         with tempfile.TemporaryDirectory() as directory:
-            source_file = Path(directory) / "short-options.bf"
+            source_file = Path(directory) / "short-options.b"
             source_file.write_text("-[-].", encoding="utf-8")
             result = subprocess.run(
                 [

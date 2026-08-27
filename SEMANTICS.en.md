@@ -111,4 +111,4 @@ When `max_steps` is `N`, the interpreter executes at most `N` original BF instru
 
 ## Verification Strategy
 
-In addition to semantic-matrix cases, the test suite uses a fixed random seed to generate terminating 8-bit programs and compares O0, O1, and O2 results with an independent one-instruction-at-a-time reference machine. `tests/external/brainfuck.org-obscure-problems.bf` is sourced from Daniel B. Cristofani's [Brainfuck.org implementation tests](https://brainfuck.org/tests.b) for external regression coverage.
+In addition to semantic-matrix cases, the test suite uses a fixed random seed to generate terminating 8-bit programs and compares O0, O1, and O2 results with an independent one-instruction-at-a-time reference machine. `tests/external/brainfuck.org-obscure-problems.b` is sourced from Daniel B. Cristofani's [Brainfuck.org implementation tests](https://brainfuck.org/tests.b) for external regression coverage.

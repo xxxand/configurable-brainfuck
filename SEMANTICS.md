@@ -111,4 +111,4 @@ Cell 语义、I/O 表示与调试展示相互独立。固定宽度 Cell 是模 `
 
 ## 验证策略
 
-除语义矩阵案例外，测试套件使用固定随机种子生成可终止的 8-bit 程序，并将 O0、O1、O2 解释结果与独立的逐条参考机对比。`tests/external/brainfuck.org-obscure-problems.bf` 来自 Daniel B. Cristofani 的 [Brainfuck.org 实现测试集](https://brainfuck.org/tests.b)，用于外部回归验证。
+除语义矩阵案例外，测试套件使用固定随机种子生成可终止的 8-bit 程序，并将 O0、O1、O2 解释结果与独立的逐条参考机对比。`tests/external/brainfuck.org-obscure-problems.b` 来自 Daniel B. Cristofani 的 [Brainfuck.org 实现测试集](https://brainfuck.org/tests.b)，用于外部回归验证。
