@@ -2,198 +2,84 @@
 
 中文 | [English](README.en.md)
 
-一个可配置的 Brainfuck (BF) 解释器，使用 Python 标准库实现。默认提供无人工边界的无限制模式，也可切换为 8-bit 标准兼容模式。
+使用 Python 标准库实现的可配置 Brainfuck 解释器、格式化器、Python 代码生成器和本地 Web 工作台。默认是双向无限 Tape 与任意精度 Cell，也提供经典 8-bit 兼容模式。
 
 ## 特性
 
-- 默认 Tape 使用稀疏字典，以带符号整数作为位置索引。指针可无限向左或向右移动，未使用的 Cell 读取为 `0`。
-- 默认 Cell 使用 Python `int`，`+` 和 `-` 不进行范围截断；也可配置为任意位宽、按模 `2^N` 回绕的固定宽度 Cell。
 - 支持完整 BF 指令集：`>`、`<`、`+`、`-`、`.`、`,`、`[`、`]`。
-- 在执行前检查括号匹配；多余 `[` 或 `]` 会引发 `SyntaxError`。
-- 连续的指针移动和 Cell 增减会合并执行，减少解释开销；启用步数限制或 Tape 边界时会保留必要的逐指令执行。
-- 除实际内存、运行时间和 Python 整数可用资源外，不设置 Tape、Cell 或指针的人为上限。
+- 提供 `unlimited`、`standard`、`standard-one-way`、`strict` 运行预设。
+- 支持可配置 Cell 位宽、Tape 边界、EOF、输出模式、步数限制和优化级别。
+- 提供 trace、profile、IR 输出、qdb `#` 调试、块注释和 Python 代码生成。
+- 包含命令行、模块 API、格式化器和本地浏览器工作台。
 
-## Cell、I/O 与调试展示
-
-固定宽度 Cell 是模 `2^N` 的位模式。`+`、`-`、`[`、`]` 按位模式及其是否为 `0` 执行；signed/unsigned 仅用于调试展示。
-
-`output_mode` 只决定 `.` 如何表示当前 Cell，不会改变 Cell：`unicode` 将值作为 Unicode 码点输出；`byte` 输出 `value & 0xFF`。因此无限制 Cell 的值即使是 `1000`，byte 输出仍是 `232`，而 Cell 本身仍为 `1000`。
-
-qdb `#` 调试器可将 8-bit 位模式显示为 `signed`（默认）或 `unsigned` 数字，例如同一位模式可显示为 `-24` 或 `232`。这是展示选项，不影响 BF 执行、循环判断或 `.` 的输出。
+固定宽度 Cell 是模 `2^N` 的位模式；`.`, qdb `#` 和调试数值格式只决定 I/O 或展示方式，不改变 Cell 的执行语义。完整定义见 [SEMANTICS.md](SEMANTICS.md)。
 
 ## 环境
 
-需要 Python 3.10 或更新版本，不需要安装第三方依赖。
+需要 Python 3.10 或更新版本，不需要第三方依赖。
 
-## 命令行
+## 快速开始
 
-在项目目录执行：
+运行示例：
 
 ```powershell
 python brainfuck.py code.b
 ```
 
-使用 8-bit 标准模式、单向标准模式或常见 30,000 Cell 严格模式：
-
-```powershell
-python brainfuck.py --mode standard code.b
-python brainfuck.py --mode standard-one-way code.b
-python brainfuck.py --mode strict code.b
-```
-
-高频参数可使用短形式：`-m`（模式）、`-b`（Cell 位宽）、`-e`（EOF 行为）、`-o`（输出模式）、`-s`（最大步数）和 `-O`（关闭优化）。
-
-```powershell
-python brainfuck.py -m strict -s 100000 code.b
-python brainfuck.py -b 16 -o byte code.b
-```
-
-优化级别使用 `--optimization-level 0`、`1` 或 `2`：`0` 逐条执行，`1` 合并连续移动和增减（默认），`2` 还会在固定宽度回绕 Cell 模式中安全折叠 `[-]` 与 `[+]` 清零循环。开启 `max_steps`、trace 或 profile 时，解释器会保留保证精确语义所需的逐条操作。
-
-细调示例：
-
-```powershell
-python brainfuck.py --cell-bits 16 --tape-min 0 --tape-max 65535 code.b
-python brainfuck.py --mode strict --tape-max unbounded --max-steps 100000 code.b
-python brainfuck.py --mode strict --pointer-bounds wrap code.b
-```
-
-`code.b` 是 Hello World 示例，输出：
-
-```text
-Hello World!
-```
-
-当 BF 程序执行到 `,` 时，解释器才从标准输入读取一个字符。没有 `,` 的程序不会等待标准输入。例如：
-
-```powershell
-python brainfuck.py input.b
-```
-
-若 `input.b` 内容为 `,.`，输入一个字符并按 Enter 后，程序会输出该字符。输入结束后继续执行 `,` 时会向当前 Cell 写入 `0`。
-
-## 作为模块导入
+作为模块调用：
 
 ```python
 from brainfuck import interpret
 
-sourcecode = """
-    ++++++++++[>+++++++>++++++++++>+++>+<<<<-]
-    >++.>+.+++++++..+++.>++.<<+++++++++++++++.
-    >.+++.------.--------.>+.>.
-"""
-
-print(interpret(sourcecode), end="")
+print(interpret("++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>."), end="")
 ```
 
-`interpret(sourcecode, input_data="")` 返回 BF 程序的完整输出字符串。`input_data` 中的字符依次供 `,` 指令读取，按 Unicode 码点写入 Cell。
+标准 8-bit 模式：
 
-运行配置使用关键字参数：
+```powershell
+python brainfuck.py --mode strict code.b
+```
+
+## 配置
+
+`unlimited` 使用任意精度 Cell 和双向无限 Tape；`standard` 使用 8-bit Cell；`standard-one-way` 限制指针不得小于 `0`；`strict` 使用 30,000 个单向 8-bit Cell。完整的参数、Cell/Tape 语义、EOF、步数与 I/O 规则见 [SEMANTICS.md](SEMANTICS.md)。
 
 ```python
-# 8-bit 回绕、单向、30,000 Cell
-interpret(sourcecode, mode="strict")
+from brainfuck import interpret
 
-# 16-bit 回绕、单向、65,536 Cell
-interpret(sourcecode, cell_bits=16, tape_min=0, tape_max=65535)
-
-# 保持无限 Cell，但限制最多执行 100,000 条 BF 指令
-interpret(sourcecode, max_steps=100_000)
-
-# 有限 Tape 的指针绕回：从 0 左移到 29999
-interpret(sourcecode, mode="strict", pointer_bounds="wrap")
-
-# 启用 /* ... */ 块注释和 qdb 的 # 调试扩展
-interpret(sourcecode, mode="strict", comment_style="block", debug_command="qdb")
-
-# O0：逐条执行；O1 是默认；O2 仅在安全条件下优化清零循环
-interpret(sourcecode, optimization_level=0)
+interpret(sourcecode, mode="strict", max_steps=100_000)
 ```
 
-`interpret()` 与 `compile_to_python()` 使用相同的 `optimize` 和 `optimization_level` 接口。`optimize=False` 等价于 `optimization_level=0`；O1 是默认，O2 仅在固定宽度回绕 Cell 下优化 `[-]` 和 `[+]`。两者在启用 `max_steps` 或有限 Tape 时都会禁用可能跳过原始步数或中间边界检查的合并。
+## 工具
 
-```python
-from brainfuck import compile_to_python
-
-generated = compile_to_python(sourcecode, mode="strict", optimization_level=2)
-```
-
-## 语义说明
-
-- 非 BF 指令字符会被忽略，因此源码可以包含空白和注释。
-- `.` 的默认 `unicode` 输出模式将当前 Cell 解释为 Unicode 码点；无效码点会引发 `ValueError`。`byte` 模式输出 Cell 的低 8 位。
-- `,` 的默认 EOF 行为是写入 `0`；可通过 `eof_mode="unchanged"` 保持原值，或通过 `eof_mode="error"` 抛出异常。
-- `[` 在当前 Cell 为 `0` 时跳到匹配的 `]` 之后；`]` 在当前 Cell 非 `0` 时跳回匹配的 `[` 之后。
-
-完整的模式、参数、逐指令行为、异常及步数定义见 [SEMANTICS.md](SEMANTICS.md)。
-
-## 调试与观测
-
-`--trace` 将逐条执行信息写到标准错误，不污染 BF 程序的标准输出。`--trace-format jsonl` 输出稳定的 JSON Lines；`--trace-file` 将追踪写入单独文件。
+格式化 BF 源码：
 
 ```powershell
-python brainfuck.py --trace code.b
-python brainfuck.py --trace --trace-format jsonl --trace-file trace.jsonl code.b
-python brainfuck.py --profile --dump-ir code.b
-```
-
-`--profile` 在标准错误输出 JSON，包含原始指令步数、运行时间、指针访问范围、非零 Cell 数和操作计数。`--dump-ir` 显示内部操作、合并结果、跳转目标与源代码位置。启用 `--trace` 或 `--profile` 时，移动和增减不会合并，从而保留准确的逐条观测结果。
-
-标准兼容模式 (`standard`、`standard-one-way`、`strict`) 的 CLI 使用原始字节流进行 I/O。模块 API 的 `interpret_bytes()` 提供相同的二进制语义；`interpret()` 的文本输入在 byte 输出模式中仅接受 ASCII 字符。
-
-## 可选扩展
-
-可显式启用两项非标准扩展：
-
-```powershell
-python brainfuck.py -m strict --comment-style block --debug-command qdb code.b
-```
-
-- `comment_style="block"` 移除非嵌套的 `/* ... */` 块，块内的 BF 指令不会执行。未闭合块会报出原始行列位置。
-- `debug_command="qdb"` 将 `#` 识别为 Daniel B. Cristofani `qdb.c` 调试指令：输出前 64 个 Cell 与指针 `^`。该扩展要求 8-bit 回绕 Cell，并写到 BF 程序的标准输出。`debug_number_format="signed"`（默认）或 `"unsigned"` 只改变数值展示。
-
-## 编译为 Python
-
-`compile_to_python(sourcecode, optimize=True, optimization_level=None)` 返回独立、仅依赖 Python 标准库的 Python 程序文本。生成脚本嵌入 BF 源码、选定配置和编译后的 `OPERATIONS` IR。O0 为每条原始指令生成一项，O1 合并连续操作并保留原始步数，O2 在安全条件下生成 `clear` 操作。生成脚本不提供解释器运行期的 `trace` 或 `profile` 回调。
-
-命令行使用 `--compile-python [OUTPUT] code.b`。省略 `OUTPUT` 时生成代码写到标准输出；提供目标时写入该文件：
-
-```powershell
-python brainfuck.py --compile-python code.b > program.py
-python brainfuck.py --compile-python program.py code.b
-python brainfuck.py --compile-python code.b | python
-```
-
-执行 BF 时，程序结果始终写到标准输出。需要保存结果时使用 shell 重定向，例如 `python brainfuck.py code.b > result.bin`。
-
-## 格式化代码
-
-`bf_formatter.py` 将连续的非括号 BF 指令保留为一个指令块，`[`、`]` 与启用 qdb 时的 `#` 独占一行，并按括号缩进。普通无关文字若与指令同源行，会作为距指令 2 个空格的尾注释；独占行文字保持独占。启用块注释模式后，`/* ... */` 保留行数和内部相对缩进。
-
-```powershell
-python bf_formatter.py code.b
-python bf_formatter.py -o formatted.b code.b
 python bf_formatter.py --in-place code.b
-python bf_formatter.py --comment-style block --debug-command qdb code.b
 ```
 
-作为模块导入：
+生成独立 Python 脚本：
 
-```python
-from bf_formatter import format_source
-
-formatted = format_source(sourcecode, comment_style="block", debug_command="qdb")
+```powershell
+python brainfuck.py --compile-python program.py code.b
 ```
 
-## 浏览器前端
-
-`web/` 是无需构建步骤的浏览器工作台，通过本地 Python API 调用项目的实际解释器、格式化器和生成器。启动后访问 `http://localhost:8000`：
+启动本地 Web 工作台：
 
 ```powershell
 python bf_web.py
 ```
 
-前端提供源码编辑、模式和所有运行配置、输入输出、格式化、qdb 调试、IR、trace、profile 和独立 Python 代码生成。所有 BF 执行均由本机 Python 运行时完成。源码、输入、运行配置和当前 Inspect 标签会自动保存在浏览器 LocalStorage 中；输出和执行记录不会恢复。
+然后访问 `http://127.0.0.1:8000`。工作台通过本机 Python API 执行、格式化和生成代码，并在浏览器 LocalStorage 中保存源码、输入和运行配置。
+
+## 调试与扩展
+
+```powershell
+python brainfuck.py --trace --profile --dump-ir code.b
+python brainfuck.py -m strict --comment-style block --debug-command qdb code.b
+```
+
+`--trace-format jsonl` 提供机器可读追踪。`comment_style="block"` 启用 `/* ... */`，`debug_command="qdb"` 启用 `#` 调试指令。完整规则见 [SEMANTICS.md](SEMANTICS.md)。
 
 ## 测试
 
@@ -201,7 +87,7 @@ python bf_web.py
 python -m unittest -v
 ```
 
-测试覆盖导入调用、命令行执行、CLI 惰性输入、标准模式、双向和受限 Tape、位宽回绕、EOF、循环、输入、括号错误和步数限制。固定种子的随机差分测试将 O0/O1/O2 与独立逐条 8-bit 参考机比较；`tests/external/` 还包含带来源说明的 Brainfuck.org 回归样本。
+测试包含语义矩阵、随机差分测试和 Brainfuck.org 外部回归样本。
 
 ## 参考资料
 
