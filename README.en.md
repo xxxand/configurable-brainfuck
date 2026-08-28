@@ -15,7 +15,7 @@ A configurable Brainfuck (BF) interpreter implemented with the Python standard l
 
 ## Cell, I/O, And Debug Views
 
-Fixed-width Cells are bit patterns modulo `2^N`; there is no signed/unsigned Cell mode that affects BF execution. `+`, `-`, `[`, and `]` operate only on the bit pattern and whether it is `0`.
+Fixed-width Cells are bit patterns modulo `2^N`. `+`, `-`, `[`, and `]` operate on the bit pattern and whether it is `0`; signed/unsigned is used only for debugger presentation.
 
 `output_mode` controls only how `.` represents the current Cell and never changes that Cell: `unicode` outputs the value as a Unicode code point, while `byte` outputs `value & 0xFF`. An unbounded Cell with value `1000` therefore produces byte `232` in byte-output mode while the Cell remains `1000`.
 
@@ -143,7 +143,7 @@ Standard-compatible modes (`standard`, `standard-one-way`, and `strict`) use raw
 
 ## Optional Extensions
 
-By default, only the eight BF instructions are active, so `#` and `/* ... */` do not change existing program behavior. Two nonstandard extensions can be enabled explicitly:
+Two nonstandard extensions can be enabled explicitly:
 
 ```powershell
 python brainfuck.py -m strict --comment-style block --debug-command qdb code.b
@@ -193,7 +193,7 @@ formatted = format_source(sourcecode, comment_style="block", debug_command="qdb"
 python bf_web.py
 ```
 
-The frontend provides source editing, modes and runtime configuration, input/output, formatting, qdb debugging, IR, tracing, profiling, and standalone Python generation. All BF execution uses the local Python runtime, so browser and Python interpreter semantics cannot drift apart. Source, input, runtime settings, and the active Inspect tab are restored from browser LocalStorage; output and execution records are not restored.
+The frontend provides source editing, modes and runtime configuration, input/output, formatting, qdb debugging, IR, tracing, profiling, and standalone Python generation. All BF execution uses the local Python runtime. Source, input, runtime settings, and the active Inspect tab are restored from browser LocalStorage; output and execution records are not restored.
 
 ## Tests
 

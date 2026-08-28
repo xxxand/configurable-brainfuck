@@ -15,7 +15,7 @@
 
 ## Cell、I/O 与调试展示
 
-固定宽度 Cell 是模 `2^N` 的位模式，不存在影响 BF 执行的 signed/unsigned Cell 模式。`+`、`-`、`[`、`]` 只处理位模式及其是否为 `0`。
+固定宽度 Cell 是模 `2^N` 的位模式。`+`、`-`、`[`、`]` 按位模式及其是否为 `0` 执行；signed/unsigned 仅用于调试展示。
 
 `output_mode` 只决定 `.` 如何表示当前 Cell，不会改变 Cell：`unicode` 将值作为 Unicode 码点输出；`byte` 输出 `value & 0xFF`。因此无限制 Cell 的值即使是 `1000`，byte 输出仍是 `232`，而 Cell 本身仍为 `1000`。
 
@@ -143,7 +143,7 @@ python brainfuck.py --profile --dump-ir code.b
 
 ## 可选扩展
 
-默认只有 8 条 BF 指令生效，`#` 和 `/* ... */` 不会改变现有程序行为。可显式启用两项非标准扩展：
+可显式启用两项非标准扩展：
 
 ```powershell
 python brainfuck.py -m strict --comment-style block --debug-command qdb code.b
@@ -193,7 +193,7 @@ formatted = format_source(sourcecode, comment_style="block", debug_command="qdb"
 python bf_web.py
 ```
 
-前端提供源码编辑、模式和所有运行配置、输入输出、格式化、qdb 调试、IR、trace、profile 和独立 Python 代码生成。所有 BF 执行都由本机 Python 运行时完成，不存在浏览器与 Python 两套解释器语义偏离的问题。源码、输入、运行配置和当前 Inspect 标签会自动保存在浏览器 LocalStorage 中；输出和执行记录不会恢复。
+前端提供源码编辑、模式和所有运行配置、输入输出、格式化、qdb 调试、IR、trace、profile 和独立 Python 代码生成。所有 BF 执行均由本机 Python 运行时完成。源码、输入、运行配置和当前 Inspect 标签会自动保存在浏览器 LocalStorage 中；输出和执行记录不会恢复。
 
 ## 测试
 
